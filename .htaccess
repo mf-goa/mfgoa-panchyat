@@ -1,0 +1,13 @@
+# Protect .env file
+<Files ".env">
+  Order allow,deny
+  Deny from all
+</Files>
+
+# Prevent directory listing
+Options -Indexes
+
+# Force HTTPS (optional if SSL enabled)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
