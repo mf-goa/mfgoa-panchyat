@@ -2,27 +2,13 @@
 session_start();
 
 /* ================================
-   LOAD .env
-================================= */
-function loadEnv($path) {
-    if (!file_exists($path)) return;
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        list($key, $value) = explode('=', $line, 2);
-        $_ENV[trim($key)] = trim($value);
-    }
-}
-loadEnv(__DIR__ . '/.env');
-
-/* ================================
-   DB CONNECTION
+   DIRECT DB CONNECTION (TEMP)
 ================================= */
 $conn = new mysqli(
-    $_ENV['DB_HOST'],
-    $_ENV['DB_USER'],
-    $_ENV['DB_PASS'],
-    $_ENV['DB_NAME']
+    "mysql.hostinger.in",
+    "u748742760_mtlm4",
+    "0]CfUM0cBzit",
+    "u748742760_mf1oa"
 );
 
 if ($conn->connect_error) {
