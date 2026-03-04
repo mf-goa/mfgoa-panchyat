@@ -1,12 +1,6 @@
 <?php
 
 session_start();
-// ================================
-// DEBUG MODE (TEMPORARY)
-// ================================
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 
 /* ================================
    DIRECT DB CONNECTION (TEMP)
@@ -20,21 +14,6 @@ $conn = new mysqli(
 
 if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
-}
-
-// ================================
-// DB CONNECTION DEBUG TEST
-// ================================
-$debug_test = $conn->query("SELECT COUNT(*) as total FROM mf_submit_collection_entry");
-if ($debug_test) {
-    $debug_row = $debug_test->fetch_assoc();
-    echo "<div style='background:#000;color:#0f0;padding:5px;font-size:12px;'>
-    DEBUG: Total rows in mf_submit_collection_entry = {$debug_row['total']}
-    </div>";
-} else {
-    echo "<div style='background:red;color:#fff;padding:5px;'>
-    DEBUG QUERY FAILED: " . $conn->error . "
-    </div>";
 }
 
 /* ================================
@@ -99,9 +78,6 @@ endif;
 ================================ */
 
 $panchayat_id = $_SESSION['panchayat_id'];
-echo "<div style='background:#111;color:#fff;padding:5px;font-size:12px;'>
-DEBUG: Panchayat ID = {$panchayat_id}
-</div>";
 $year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
 
@@ -119,9 +95,6 @@ if ($wado) {
 }
 
 $where_sql = implode(" AND ", $where);
-echo "<div style='background:#222;color:#0ff;padding:5px;font-size:12px;'>
-DEBUG WHERE CLAUSE: $where_sql
-</div>";
 
 /* ================================
    EXPORT TO EXCEL
@@ -149,11 +122,7 @@ if (isset($_GET['export']) && $_GET['export'] == 'excel') {
     $stmt = $conn->prepare($sql_export);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
-    if ($stmt->error) {
-        echo "<div style='background:red;color:white;padding:5px;'>
-        DEBUG SQL ERROR: " . $stmt->error . "
-        </div>";
-    }
+
     $res = $stmt->get_result();
 
     while ($row = $res->fetch_assoc()) {
@@ -181,11 +150,7 @@ WHERE $where_sql
 $stmt = $conn->prepare($sql_kpi);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
-if ($stmt->error) {
-    echo "<div style='background:red;color:white;padding:5px;'>
-    DEBUG SQL ERROR: " . $stmt->error . "
-    </div>";
-}
+
 $kpi = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
@@ -206,11 +171,7 @@ GROUP BY month ORDER BY month
 $stmt = $conn->prepare($sql_month);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
-if ($stmt->error) {
-    echo "<div style='background:red;color:white;padding:5px;'>
-    DEBUG SQL ERROR: " . $stmt->error . "
-    </div>";
-}
+
 $res = $stmt->get_result();
 
 $months = [];
@@ -242,11 +203,7 @@ ORDER BY serviced DESC
 $stmt = $conn->prepare($sql_wado);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
-if ($stmt->error) {
-    echo "<div style='background:red;color:white;padding:5px;'>
-    DEBUG SQL ERROR: " . $stmt->error . "
-    </div>";
-}
+
 $res = $stmt->get_result();
 
 $wado_labels = [];
@@ -277,11 +234,7 @@ GROUP BY ss.id
 $stmt = $conn->prepare($sql_seg);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
-if ($stmt->error) {
-    echo "<div style='background:red;color:white;padding:5px;'>
-    DEBUG SQL ERROR: " . $stmt->error . "
-    </div>";
-}
+
 $res = $stmt->get_result();
 
 $seg_labels = [];
