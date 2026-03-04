@@ -41,8 +41,8 @@ if ($debug_test) {
    HARDCODED USERS
 ================================ */
 $users = [
-    'bicholim' => ['password' => 'bicho123', 'panchayat_id' => 3],
-    'sankhali' => ['password' => 'sank123', 'panchayat_id' => 5]
+    'bicholim' => ['password' => 'bicho123', 'panchayat_id' => 225],
+    'sankhali' => ['password' => 'sank123', 'panchayat_id' => 227]
 ];
 
 /* ================================
