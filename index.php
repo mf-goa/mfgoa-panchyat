@@ -324,41 +324,50 @@ Export Excel
     </div>
 </div>
 
-
-<div class="row mb-4">
+<div class="row mb-3">
     <div class="col-md-4">
-        <div class="card p-3 text-center shadow-sm">
-            <h6>Total Collections</h6>
-            <h3><?= number_format($kpi['total_collections']); ?></h3>
+        <div class="card p-2 text-center shadow-sm">
+            <small>Total Collections</small>
+            <h4 class="mb-0"><?= number_format($kpi['total_collections']); ?></h4>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card p-3 text-center shadow-sm">
-            <h6>Serviced Households</h6>
-            <h3><?= number_format($kpi['serviced_households']); ?></h3>
+        <div class="card p-2 text-center shadow-sm">
+            <small>Serviced Households</small>
+            <h4 class="mb-0"><?= number_format($kpi['serviced_households']); ?></h4>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card p-3 text-center shadow-sm">
-            <h6>Last Collection</h6>
-            <h3><?= $kpi['last_collection']; ?></h3>
+        <div class="card p-2 text-center shadow-sm">
+            <small>Last Collection</small>
+            <h4 class="mb-0"><?= $kpi['last_collection']; ?></h4>
         </div>
     </div>
 </div>
 
-<div class="card p-4 mb-4 shadow-sm">
-    <h5>Monthly Trend</h5>
-    <canvas id="monthlyChart"></canvas>
-</div>
+<div class="row g-3">
 
-<div class="card p-4 mb-4 shadow-sm">
-    <h5>Wado Breakdown</h5>
-    <canvas id="wadoChart"></canvas>
-</div>
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm">
+            <h6 class="text-center">Monthly Trend</h6>
+            <canvas id="monthlyChart" style="height:260px"></canvas>
+        </div>
+    </div>
 
-<div class="card p-4 shadow-sm">
-    <h5>Segregation Breakdown</h5>
-    <canvas id="segChart"></canvas>
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm">
+            <h6 class="text-center">Wado Breakdown</h6>
+            <canvas id="wadoChart" style="height:260px"></canvas>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm">
+            <h6 class="text-center">Segregation Breakdown</h6>
+            <canvas id="segChart" style="height:260px"></canvas>
+        </div>
+    </div>
+
 </div>
 
 <script>
