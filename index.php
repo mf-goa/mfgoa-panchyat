@@ -270,6 +270,20 @@ $seg_data[] = $r['total'];
 }
 $stmt->close();
 
+/* CALCULATE SEGREGATION COMPLIANCE */
+$total_seg_records = array_sum($seg_data);
+$segregated_count = 0;
+
+foreach ($seg_labels as $i => $label) {
+    if (stripos($label, 'segregate') !== false) {
+        $segregated_count += $seg_data[$i];
+    }
+}
+
+$seg_compliance = $total_seg_records > 0 
+    ? round(($segregated_count / $total_seg_records) * 100, 1) 
+    : 0;
+
 /* WADO FILTER LIST */
 $wado_list = [];
 $stmt = $conn->prepare("
@@ -369,26 +383,35 @@ Export Excel
 </div>
 
 <div class="row mb-3">
-<div class="col-md-4">
+
+<div class="col-md-3">
 <div class="card p-2 text-center shadow-sm">
 <small>Total Collections</small>
 <h4><?= number_format($kpi['total_collections']); ?></h4>
 </div>
 </div>
 
-<div class="col-md-4">
+<div class="col-md-3">
 <div class="card p-2 text-center shadow-sm">
 <small>Serviced Households</small>
 <h4><?= number_format($kpi['serviced_households']); ?></h4>
 </div>
 </div>
 
-<div class="col-md-4">
+<div class="col-md-3">
 <div class="card p-2 text-center shadow-sm">
 <small>Last Collection</small>
 <h4><?= $kpi['last_collection']; ?></h4>
 </div>
 </div>
+
+<div class="col-md-3">
+<div class="card p-2 text-center shadow-sm">
+<small>Segregation Compliance</small>
+<h4><?= $seg_compliance ?>%</h4>
+</div>
+</div>
+
 </div>
 
 <div class="row g-3">
@@ -458,7 +481,23 @@ new Chart(document.getElementById('segChart'), {
 type: 'pie',
 data: {
 labels: <?= json_encode($seg_labels); ?>,
-datasets: [{ data: <?= json_encode($seg_data); ?> }]
+datasets: [{
+data: <?= json_encode($seg_data); ?>
+}]
+},
+options: {
+plugins: {
+tooltip: {
+callbacks: {
+label: function(context) {
+let total = context.dataset.data.reduce((a,b)=>a+b,0);
+let value = context.raw;
+let pct = ((value/total)*100).toFixed(1);
+return context.label + ": " + value + " (" + pct + "%)";
+}
+}
+}
+}
 }
 });
 
