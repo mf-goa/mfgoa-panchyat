@@ -79,14 +79,24 @@ endif;
 
 $panchayat_id = $_SESSION['panchayat_id'];
 $year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
+$months_filter = isset($_GET['months']) ? $_GET['months'] : [];
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
 
 /* ================================
    BUILD WHERE
 ================================ */
-$where = ["YEAR(msce.collection_date) = ?", "mp.id = ?"];
-$params = [$year, $panchayat_id];
-$types = "ii";
+ $where = ["YEAR(msce.collection_date) = ?", "mp.id = ?"];
+ $params = [$year, $panchayat_id];
+ $types = "ii";
+
+if (!empty($months_filter)) {
+    $month_placeholders = implode(',', array_fill(0, count($months_filter), '?'));
+    $where[] = "MONTH(msce.collection_date) IN ($month_placeholders)";
+    foreach ($months_filter as $m) {
+        $params[] = intval($m);
+        $types .= "i";
+    }
+}
 
 if ($wado) {
     $where[] = "w.id = ?";
@@ -259,6 +269,54 @@ $conn->close();
 
 <body class="p-4 bg-light">
 
+<div class="card p-3 mb-4 shadow-sm">
+<form method="GET" class="row g-3 align-items-end">
+
+<div class="col-md-2">
+<label class="form-label">Year</label>
+<select name="year" class="form-control">
+<?php
+$currentYear = date('Y');
+for($y=$currentYear;$y>=2022;$y--){
+    $selected = ($y==$year) ? "selected" : "";
+    echo "<option value='$y' $selected>$y</option>";
+}
+?>
+</select>
+</div>
+
+<div class="col-md-6">
+<label class="form-label">Months</label>
+<select name="months[]" class="form-control" multiple size="3">
+<?php
+$monthNames = [
+1=>"Jan",2=>"Feb",3=>"Mar",4=>"Apr",
+5=>"May",6=>"Jun",7=>"Jul",8=>"Aug",
+9=>"Sep",10=>"Oct",11=>"Nov",12=>"Dec"
+];
+
+foreach($monthNames as $num=>$name){
+    $selected = in_array($num,$months_filter) ? "selected" : "";
+    echo "<option value='$num' $selected>$name</option>";
+}
+?>
+</select>
+</div>
+
+<div class="col-md-2">
+<button type="submit" class="btn btn-primary w-100">
+Apply Filters
+</button>
+</div>
+
+<div class="col-md-2">
+<a href="?export=excel&year=<?=$year?><?php foreach($months_filter as $m){ echo '&months[]='.$m;} ?>" class="btn btn-success w-100">
+Export Excel
+</a>
+</div>
+
+</form>
+</div>
 <div class="d-flex justify-content-between mb-4">
     <h3><?= ucfirst($_SESSION['username']); ?> Dashboard (<?= $year; ?>)</h3>
     <div>
@@ -266,7 +324,6 @@ $conn->close();
     </div>
 </div>
 
-<a href="?year=<?= $year ?>&export=excel" class="btn btn-success mb-3">Export Wado Report</a>
 
 <div class="row mb-4">
     <div class="col-md-4">
