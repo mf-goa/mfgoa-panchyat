@@ -367,6 +367,9 @@ while ($r = $res->fetch_assoc()) {
 $stmt->close();
 
 $conn->close();
+
+/* DEBUG TOGGLE */
+$debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 ?>
 
 <!DOCTYPE html>
@@ -379,6 +382,42 @@ $conn->close();
 
 
 <body class="p-4 bg-light">
+
+<?php if($debug_mode): ?>
+<div class="card p-3 mb-3 border-danger">
+<h5 class="text-danger">DEBUG PANEL</h5>
+
+<div class="row">
+
+<div class="col-md-3">
+<strong>Panchayat ID:</strong> <?= $panchayat_id ?><br>
+<strong>Year:</strong> <?= $year ?><br>
+<strong>Wado:</strong> <?= $wado ? $wado : 'All' ?><br>
+<strong>Months:</strong> <?= implode(',', $months_filter) ?>
+</div>
+
+<div class="col-md-3">
+<strong>Total Households:</strong> <?= number_format($total_households) ?><br>
+<strong>Total Collections:</strong> <?= number_format($kpi['total_collections']) ?><br>
+<strong>Serviced Households:</strong> <?= number_format($kpi['serviced_households']) ?><br>
+<strong>Last Collection:</strong> <?= $kpi['last_collection'] ?>
+</div>
+
+<div class="col-md-3">
+<strong>Collection Compliance %:</strong> <?= $collection_compliance ?>%<br>
+<strong>Seg Labels:</strong><br>
+<?php foreach($seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$seg_data[$i].")<br>"; } ?>
+</div>
+
+<div class="col-md-3">
+<strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
+<strong>Wado Seg Data:</strong><br>
+<?php foreach($wado_seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$wado_seg_data[$i]."%)<br>"; } ?>
+</div>
+
+</div>
+</div>
+<?php endif; ?>
 
 <div class="card p-3 mb-4 shadow-sm">
 <form method="GET" class="row g-3 align-items-end">
