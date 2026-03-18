@@ -338,7 +338,7 @@ $stmt->close();
 $sql_wado_seg = "
 SELECT 
 w.name,
-SUM(CASE WHEN ss.name LIKE '%Segregate%' THEN 1 ELSE 0 END) as segregated,
+COUNT(DISTINCT CASE WHEN ss.name LIKE '%Segregate%' THEN msce.household_id END) as segregated,
 COUNT(DISTINCT msce.household_id) as total
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
