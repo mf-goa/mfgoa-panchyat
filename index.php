@@ -87,6 +87,19 @@ $months_filter = isset($_GET['months']) ? $_GET['months'] : [];
 $months_filter = array_filter($months_filter, function($m){
     return is_numeric($m) && $m >= 1 && $m <= 12;
 });
+
+if (empty($months_filter)) {
+    $current_month = date('n');
+    $months_filter = [
+        $current_month,
+        $current_month - 1,
+        $current_month - 2
+    ];
+    $months_filter = array_map(function($m){
+        return $m <= 0 ? $m + 12 : $m;
+    }, $months_filter);
+}
+
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
 
 /* ================================
@@ -175,6 +188,26 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $kpi = $stmt->get_result()->fetch_assoc();
 $stmt->close();
+
+/* TOTAL HOUSEHOLDS KPI */
+$sql_total_households = "
+SELECT COUNT(*) as total_households
+FROM mf_household mh
+JOIN mf_wado w ON w.id = mh.wado_id
+JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+WHERE mh.status = 1 AND mp.id = ?
+";
+
+$stmt = $conn->prepare($sql_total_households);
+$stmt->bind_param("i", $panchayat_id);
+$stmt->execute();
+$total_households = $stmt->get_result()->fetch_assoc()['total_households'];
+$stmt->close();
+
+/* COLLECTION SERVICE COMPLIANCE */
+$collection_compliance = $total_households > 0 
+    ? round(($kpi['serviced_households'] / $total_households) * 100, 1)
+    : 0;
 
 /* ================================
    MONTHLY TREND
@@ -301,6 +334,38 @@ while($r = $res->fetch_assoc()){
 }
 $stmt->close();
 
+/* WADO SEGREGATION */
+$sql_wado_seg = "
+SELECT 
+w.name,
+SUM(CASE WHEN ss.name LIKE '%Segregate%' THEN 1 ELSE 0 END) as segregated,
+COUNT(DISTINCT msce.household_id) as total
+FROM mf_submit_collection_entry msce
+JOIN mf_household mh ON mh.id = msce.household_id
+JOIN mf_wado w ON w.id = mh.wado_id
+JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+WHERE $where_sql
+GROUP BY w.id
+ORDER BY total DESC
+";
+
+$stmt = $conn->prepare($sql_wado_seg);
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$res = $stmt->get_result();
+
+$wado_seg_labels = [];
+$wado_seg_data = [];
+
+while ($r = $res->fetch_assoc()) {
+    $wado_seg_labels[] = $r['name'];
+    $wado_seg_data[] = $r['total'] > 0 
+        ? round(($r['segregated'] / $r['total']) * 100, 1)
+        : 0;
+}
+$stmt->close();
+
 $conn->close();
 ?>
 
@@ -369,6 +434,12 @@ Apply Filters
 </div>
 
 <div class="col-md-2">
+<a href="index.php" class="btn btn-secondary w-100">
+Clear Filters
+</a>
+</div>
+
+<div class="col-md-2">
 <a href="?export=excel&year=<?=$year?><?php foreach($months_filter as $m){ echo '&months[]='.$m;} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
 Export Excel
 </a>
@@ -384,31 +455,38 @@ Export Excel
 
 <div class="row mb-3">
 
-<div class="col-md-3">
+<div class="col-md-2">
+<div class="card p-2 text-center shadow-sm">
+<small>Total Households</small>
+<h4><?= number_format($total_households); ?></h4>
+</div>
+</div>
+
+<div class="col-md-2">
 <div class="card p-2 text-center shadow-sm">
 <small>Total Collections</small>
 <h4><?= number_format($kpi['total_collections']); ?></h4>
 </div>
 </div>
 
-<div class="col-md-3">
+<div class="col-md-2">
 <div class="card p-2 text-center shadow-sm">
 <small>Serviced Households</small>
 <h4><?= number_format($kpi['serviced_households']); ?></h4>
 </div>
 </div>
 
-<div class="col-md-3">
+<div class="col-md-2">
 <div class="card p-2 text-center shadow-sm">
 <small>Last Collection</small>
 <h4><?= $kpi['last_collection']; ?></h4>
 </div>
 </div>
 
-<div class="col-md-3">
+<div class="col-md-2">
 <div class="card p-2 text-center shadow-sm">
-<small>Segregation Compliance</small>
-<h4><?= $seg_compliance ?>%</h4>
+<small>Collection Service Compliance</small>
+<h4><?= $collection_compliance ?>%</h4>
 </div>
 </div>
 
@@ -418,7 +496,7 @@ Export Excel
 
 <div class="col-md-8">
 <div class="card p-3 shadow-sm h-100">
-<h6 class="text-center">Wado Breakdown</h6>
+<h6 class="text-center">Wado Wise Collection</h6>
 <canvas id="wadoChart" style="height:420px"></canvas>
 </div>
 </div>
@@ -426,17 +504,26 @@ Export Excel
 <div class="col-md-4 d-flex flex-column gap-3">
 
 <div class="card p-3 shadow-sm">
-<h6 class="text-center">Monthly Trend</h6>
+<h6 class="text-center">Monthly Collection Service Trend</h6>
 <canvas id="monthlyChart" style="height:200px"></canvas>
 </div>
 
 <div class="card p-3 shadow-sm">
-<h6 class="text-center">Segregation Breakdown</h6>
+<h6 class="text-center">Segregation Percentage</h6>
 <canvas id="segChart" style="height:200px"></canvas>
 </div>
 
 </div>
 
+</div>
+
+<div class="row mt-3">
+<div class="col-md-12">
+<div class="card p-3 shadow-sm">
+<h6 class="text-center">Wado Wise Segregation Percentage</h6>
+<canvas id="wadoSegChart" style="height:300px"></canvas>
+</div>
+</div>
 </div>
 
 <script>
@@ -496,6 +583,26 @@ let pct = ((value/total)*100).toFixed(1);
 return context.label + ": " + value + " (" + pct + "%)";
 }
 }
+}
+}
+}
+});
+
+new Chart(document.getElementById('wadoSegChart'), {
+type: 'bar',
+data: {
+labels: <?= json_encode($wado_seg_labels); ?>,
+datasets: [{
+label: 'Segregation %',
+data: <?= json_encode($wado_seg_data); ?>
+}]
+},
+options: {
+indexAxis: 'y',
+scales: {
+x: {
+beginAtZero: true,
+max: 100
 }
 }
 }
