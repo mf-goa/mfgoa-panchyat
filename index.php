@@ -546,18 +546,24 @@ Export Excel
 </div>
 </div>
 
-<div class="col-md-12 d-flex flex-column gap-3">
+<div class="col-md-12">
+<div class="row g-3">
 
-<div class="card p-3 shadow-sm">
+<div class="col-md-6">
+<div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Monthly Collection Service Trend</h6>
-<canvas id="monthlyChart" style="height:200px"></canvas>
+<canvas id="monthlyChart" style="height:250px"></canvas>
+</div>
 </div>
 
-<div class="card p-3 shadow-sm">
+<div class="col-md-6">
+<div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Segregation Percentage</h6>
-<canvas id="segChart" style="height:200px"></canvas>
+<canvas id="segChart" style="height:250px"></canvas>
+</div>
 </div>
 
+</div>
 </div>
 
 </div>
