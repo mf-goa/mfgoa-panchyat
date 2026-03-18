@@ -163,12 +163,13 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
-    echo "<tr>";
-    echo "<td>".htmlspecialchars($row['name'])."</td>";
-    echo "<td>{$row['serviced']}</td>";
-    echo "<td>{$row['total_households']}</td>";
-    echo "</tr>";
+echo "<tr>";
+echo "<td>".htmlspecialchars($row['name'])."</td>";
+echo "<td>{$row['serviced']}</td>";
+echo "<td>{$row['total_households']}</td>";
+echo "</tr>";
 }
+
 echo "</table>";
 exit;
 }
@@ -313,7 +314,7 @@ $total_seg_records = array_sum($seg_data);
 $segregated_count = 0;
 
 foreach ($seg_labels as $i => $label) {
-    if (stripos($label, 'segregate') !== false) {
+    if ($label === 'Segregate') {
         $segregated_count += $seg_data[$i];
     }
 }
@@ -405,7 +406,7 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 <strong>Total Households:</strong> <?= number_format($total_households) ?><br>
 <strong>Total Collections:</strong> <?= number_format($kpi['total_collections']) ?><br>
 <strong>Serviced Households:</strong> <?= number_format($kpi['serviced_households']) ?><br>
-<strong>Last Collection:</strong> <?= $kpi['last_collection'] ?>
+<strong>Last Collection:</strong> <?= $kpi['last_collection'] ?? 'N/A' ?>
 </div>
 
 <div class="col-md-3">
@@ -484,7 +485,7 @@ Clear Filters
 </div>
 
 <div class="col-md-2">
-<a href="?export=excel&year=<?=$year?><?php foreach($months_filter as $m){ echo '&months[]='.$m;} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
+<a href="?export=excel&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
 Export Excel
 </a>
 </div>
@@ -523,7 +524,7 @@ Export Excel
 <div class="col-md-2">
 <div class="card p-2 text-center shadow-sm">
 <small>Last Collection</small>
-<h4><?= $kpi['last_collection']; ?></h4>
+<h4><?= $kpi['last_collection'] ?? 'N/A'; ?></h4>
 </div>
 </div>
 
@@ -538,14 +539,14 @@ Export Excel
 
 <div class="row g-3">
 
-<div class="col-md-8">
+<div class="col-md-12">
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Wado Wise Collection</h6>
-<canvas id="wadoChart" style="height:420px"></canvas>
+<canvas id="wadoChart" style="height:<?= max(700, count($wado_labels)*25) ?>px"></canvas>
 </div>
 </div>
 
-<div class="col-md-4 d-flex flex-column gap-3">
+<div class="col-md-12 d-flex flex-column gap-3">
 
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Monthly Collection Service Trend</h6>
@@ -565,7 +566,7 @@ Export Excel
 <div class="col-md-12">
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Wado Wise Segregation Percentage</h6>
-<canvas id="wadoSegChart" style="height:300px"></canvas>
+<canvas id="wadoSegChart" style="height:<?= max(700, count($wado_seg_labels)*25) ?>px"></canvas>
 </div>
 </div>
 </div>
@@ -601,16 +602,19 @@ position: 'top'
 }
 },
 scales: {
-    x: {
-        beginAtZero: true
-    },
     y: {
         ticks: {
-            autoSkip: false,
             font: {
-                size: 10
+                size: 11
+            },
+            callback: function(value) {
+                let label = this.getLabelForValue(value);
+                return label;
             }
         }
+    },
+    x: {
+        beginAtZero: true
     }
 }
 }
@@ -629,7 +633,7 @@ plugins: {
 tooltip: {
 callbacks: {
 label: function(context) {
-let total = context.dataset.data.reduce((a,b)=>a+b,0);
+let total = context.dataset.data.length ? context.dataset.data.reduce((a,b)=>a+b,0) : 0;
 let value = context.raw;
 let pct = ((value/total)*100).toFixed(1);
 return context.label + ": " + value + " (" + pct + "%)";
@@ -650,21 +654,24 @@ data: <?= json_encode($wado_seg_data); ?>
 }]
 },
 options: {
-    indexAxis: 'y',
-    scales: {
-        x: {
-            beginAtZero: true,
-            max: 100
-        },
-        y: {
-            ticks: {
-                autoSkip: false,
-                font: {
-                    size: 10
-                }
+indexAxis: 'y',
+scales: {
+    y: {
+        ticks: {
+            font: {
+                size: 11
+            },
+            callback: function(value) {
+                let label = this.getLabelForValue(value);
+                return label;
             }
         }
+    },
+    x: {
+        beginAtZero: true,
+        max: 100
     }
+}
 }
 });
 
