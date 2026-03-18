@@ -138,10 +138,11 @@ function safe_csv($value){
 ================================ */
 if (isset($_GET['export']) && $_GET['export'] == 'excel') {
 
-header("Content-Type: text/csv");
-header("Content-Disposition: attachment; filename=wado_report_$year.csv");
+header("Content-Type: application/vnd.ms-excel");
+header("Content-Disposition: attachment; filename=wado_report_$year.xls");
 
-echo "Wado,Serviced Households,Total Households\n";
+echo "<table border='1'>";
+echo "<tr><th>Wado</th><th>Serviced Households</th><th>Total Households</th></tr>";
 
 $sql_export = "
 SELECT 
@@ -162,9 +163,13 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
-echo safe_csv($row['name']).",{$row['serviced']},{$row['total_households']}\n";
+    echo "<tr>";
+    echo "<td>".htmlspecialchars($row['name'])."</td>";
+    echo "<td>{$row['serviced']}</td>";
+    echo "<td>{$row['total_households']}</td>";
+    echo "</tr>";
 }
-
+echo "</table>";
 exit;
 }
 
@@ -596,9 +601,17 @@ position: 'top'
 }
 },
 scales: {
-x: {
-beginAtZero: true
-}
+    x: {
+        beginAtZero: true
+    },
+    y: {
+        ticks: {
+            autoSkip: false,
+            font: {
+                size: 10
+            }
+        }
+    }
 }
 }
 });
@@ -637,13 +650,21 @@ data: <?= json_encode($wado_seg_data); ?>
 }]
 },
 options: {
-indexAxis: 'y',
-scales: {
-x: {
-beginAtZero: true,
-max: 100
-}
-}
+    indexAxis: 'y',
+    scales: {
+        x: {
+            beginAtZero: true,
+            max: 100
+        },
+        y: {
+            ticks: {
+                autoSkip: false,
+                font: {
+                    size: 10
+                }
+            }
+        }
+    }
 }
 });
 
