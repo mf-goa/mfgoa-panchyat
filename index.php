@@ -344,8 +344,9 @@ $stmt->close();
 $sql_wado_seg = "
 SELECT 
 w.name,
+COUNT(DISTINCT msce.household_id) as total,
 COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN msce.household_id END) as segregated,
-COUNT(DISTINCT msce.household_id) as total
+COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN msce.household_id END) as not_segregated
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
@@ -362,20 +363,78 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 $wado_seg_labels = [];
-$wado_seg_data = [];
+$wado_seg_total = [];
+$wado_seg_yes = [];
+$wado_seg_no = [];
 
 while ($r = $res->fetch_assoc()) {
     $wado_seg_labels[] = $r['name'];
-    $wado_seg_data[] = $r['total'] > 0 
-        ? round(($r['segregated'] / $r['total']) * 100, 1)
-        : 0;
+    $wado_seg_total[] = $r['total'];
+    $wado_seg_yes[] = $r['segregated'];
+    $wado_seg_no[] = $r['not_segregated'];
 }
 $stmt->close();
 
-$conn->close();
+ $conn->close();
 
 /* DEBUG TOGGLE */
 $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
+
+/* ================================
+   DETAILED EXPORT (NEW FEATURE)
+================================ */
+if (isset($_GET['export']) && $_GET['export'] == 'detailed') {
+
+header("Content-Type: application/vnd.ms-excel");
+header("Content-Disposition: attachment; filename=collection_detailed_$year.xls");
+
+echo "<table border='1'>";
+echo "<tr>
+<th>Date</th>
+<th>Panchayat</th>
+<th>Wado</th>
+<th>Household</th>
+<th>Segregation Status</th>
+<th>User</th>
+</tr>";
+
+$sql = "
+SELECT 
+msce.collection_date,
+mp.name as panchayat,
+w.name as wado,
+msce.household_id,
+ss.name as segregation_status,
+u.name as user_name
+FROM mf_submit_collection_entry msce
+JOIN mf_household mh ON mh.id = msce.household_id
+JOIN mf_wado w ON w.id = mh.wado_id
+JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+LEFT JOIN mf_user u ON u.id = msce.user_id
+WHERE $where_sql
+ORDER BY msce.collection_date DESC
+";
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$res = $stmt->get_result();
+
+while ($row = $res->fetch_assoc()) {
+    echo "<tr>";
+    echo "<td>{$row['collection_date']}</td>";
+    echo "<td>".htmlspecialchars($row['panchayat'])."</td>";
+    echo "<td>".htmlspecialchars($row['wado'])."</td>";
+    echo "<td>{$row['household_id']}</td>";
+    echo "<td>".htmlspecialchars($row['segregation_status'])."</td>";
+    echo "<td>".htmlspecialchars($row['user_name'])."</td>";
+    echo "</tr>";
+}
+
+echo "</table>";
+exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -487,6 +546,9 @@ Clear Filters
 <div class="col-md-2">
 <a href="?export=excel&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
 Export Excel
+</a>
+<a href="?export=detailed&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-dark w-100 mt-1">
+Detailed Report
 </a>
 </div>
 
@@ -654,10 +716,23 @@ new Chart(document.getElementById('wadoSegChart'), {
 type: 'bar',
 data: {
 labels: <?= json_encode($wado_seg_labels); ?>,
-datasets: [{
-label: 'Segregation %',
-data: <?= json_encode($wado_seg_data); ?>
-}]
+datasets: [
+{
+label: 'Total',
+data: <?= json_encode($wado_seg_total); ?>,
+backgroundColor: '#4e73df'
+},
+{
+label: 'Segregate',
+data: <?= json_encode($wado_seg_yes); ?>,
+backgroundColor: '#1cc88a'
+},
+{
+label: 'Do Not Segregate',
+data: <?= json_encode($wado_seg_no); ?>,
+backgroundColor: '#e74a3b'
+}
+]
 },
 options: {
 indexAxis: 'y',
@@ -674,8 +749,7 @@ scales: {
         }
     },
     x: {
-        beginAtZero: true,
-        max: 100
+        beginAtZero: true
     }
 }
 }
