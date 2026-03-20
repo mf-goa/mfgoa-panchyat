@@ -403,7 +403,7 @@ mp.name as panchayat,
 w.name as wado,
 msce.household_id,
 ss.name as segregation_status,
-u.name as user_name
+CONCAT(u.fname, ' ', u.lname) as user_name
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
