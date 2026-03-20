@@ -174,41 +174,50 @@ function safe_csv($value){
 ================================ */
 if (isset($_GET['export']) && $_GET['export'] == 'excel') {
 
-header("Content-Type: application/vnd.ms-excel");
-header("Content-Disposition: attachment; filename=wado_report_$year.xls");
+    header("Content-Type: text/csv");
+    header("Content-Disposition: attachment; filename=wado_report_$year.csv");
 
-echo "<table border='1'>";
-echo "<tr><th>Wado</th><th>Serviced Households</th><th>Total Households</th></tr>";
+    $output = fopen("php://output", "w");
 
-$sql_export = "
-SELECT 
-w.name,
-COUNT(DISTINCT msce.household_id) AS serviced,
-(SELECT COUNT(*) FROM mf_household WHERE status=1 AND wado_id=w.id) AS total_households
-FROM mf_submit_collection_entry msce
-JOIN mf_household mh ON mh.id = msce.household_id
-JOIN mf_wado w ON w.id = mh.wado_id
-JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-JOIN mf_taluka mt ON mt.id = mp.taluka_id
-WHERE $where_sql
-GROUP BY w.id
-";
+    // Optional BOM for Excel compatibility
+    fputs($output, "\xEF\xBB\xBF");
 
-$stmt = $conn->prepare($sql_export);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$res = $stmt->get_result();
+    // Header row
+    fputcsv($output, [
+        'Wado',
+        'Serviced Households',
+        'Total Households'
+    ]);
 
-while ($row = $res->fetch_assoc()) {
-echo "<tr>";
-echo "<td>".htmlspecialchars($row['name'])."</td>";
-echo "<td>{$row['serviced']}</td>";
-echo "<td>{$row['total_households']}</td>";
-echo "</tr>";
-}
+    $sql_export = "
+    SELECT 
+    w.name,
+    COUNT(DISTINCT msce.household_id) AS serviced,
+    (SELECT COUNT(*) FROM mf_household WHERE status=1 AND wado_id=w.id) AS total_households
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh ON mh.id = msce.household_id
+    JOIN mf_wado w ON w.id = mh.wado_id
+    JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+    JOIN mf_taluka mt ON mt.id = mp.taluka_id
+    WHERE $where_sql
+    GROUP BY w.id
+    ";
 
-echo "</table>";
-exit;
+    $stmt = $conn->prepare($sql_export);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    while ($row = $res->fetch_assoc()) {
+        fputcsv($output, [
+            $row['name'],
+            $row['serviced'],
+            $row['total_households']
+        ]);
+    }
+
+    fclose($output);
+    exit;
 }
 
 /* ================================
