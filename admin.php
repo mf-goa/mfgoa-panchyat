@@ -18,9 +18,8 @@ if ($conn->connect_error) {
 /* ================================
    HARDCODED USERS
 ================================ */
-$users = [
-    'bicholim' => ['password' => 'bicho123', 'panchayat_id' => 225],
-    'sankhali' => ['password' => 'sank123', 'panchayat_id' => 227]
+$admin_users = [
+    'admin' => ['password' => 'admin123']
 ];
 
 /* ================================
@@ -30,11 +29,10 @@ if (isset($_POST['login'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
-    if (isset($users[$username]) && $users[$username]['password'] === $password) {
+    if (isset($admin_users[$username]) && $admin_users[$username]['password'] === $password) {
         session_regenerate_id(true);
-        $_SESSION['logged_in'] = true;
-        $_SESSION['username'] = $username;
-        $_SESSION['panchayat_id'] = $users[$username]['panchayat_id'];
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_user'] = $username;
     } else {
         $error = "Invalid credentials";
     }
@@ -42,25 +40,25 @@ if (isset($_POST['login'])) {
 
 if (isset($_GET['logout'])) {
     session_destroy();
-    header("Location: index.php");
+    header("Location: admin.php");
     exit;
 }
 
 /* ================================
    SHOW LOGIN IF NOT AUTHENTICATED
 ================================ */
-if (!isset($_SESSION['logged_in'])):
+if (!isset($_SESSION['admin_logged_in'])):
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-<title>Panchayat Dashboard Login</title>
+<title>Admin Dashboard Login</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="d-flex justify-content-center align-items-center vh-100 bg-light">
 
 <div class="card p-4 shadow" style="width:350px;">
-<h4 class="mb-3 text-center">Panchayat Login</h4>
+<h4 class="mb-3 text-center">Admin Login</h4>
 
 <?php if(isset($error)) echo "<div class='alert alert-danger'>$error</div>"; ?>
 
@@ -80,14 +78,11 @@ endif;
 /* ================================
    DASHBOARD LOGIC
 ================================ */
-
-$panchayat_id = $_SESSION['panchayat_id'];
 $year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
 $months_filter = isset($_GET['months']) ? $_GET['months'] : [];
 $months_filter = array_filter($months_filter, function($m){
     return is_numeric($m) && $m >= 1 && $m <= 12;
 });
-
 if (empty($months_filter)) {
     $current_month = date('n');
     $months_filter = [
@@ -101,13 +96,15 @@ if (empty($months_filter)) {
 }
 
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
+$taluka = isset($_GET['taluka']) ? intval($_GET['taluka']) : null;
+$panchayat = isset($_GET['panchayat']) ? intval($_GET['panchayat']) : null;
 
 /* ================================
    BUILD WHERE
 ================================ */
-$where = ["YEAR(msce.collection_date) = ?", "mp.id = ?"];
-$params = [$year, $panchayat_id];
-$types = "ii";
+$where = ["YEAR(msce.collection_date) = ?"];
+$params = [$year];
+$types = "i";
 
 if (!empty($months_filter)) {
     $month_placeholders = implode(',', array_fill(0, count($months_filter), '?'));
@@ -121,6 +118,16 @@ if (!empty($months_filter)) {
 if ($wado) {
     $where[] = "w.id = ?";
     $params[] = $wado;
+    $types .= "i";
+}
+if ($taluka) {
+    $where[] = "mt.id = ?";
+    $params[] = $taluka;
+    $types .= "i";
+}
+if ($panchayat) {
+    $where[] = "mp.id = ?";
+    $params[] = $panchayat;
     $types .= "i";
 }
 
@@ -153,6 +160,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
 GROUP BY w.id
 ";
@@ -186,6 +194,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
 ";
 
@@ -201,11 +210,29 @@ SELECT COUNT(*) as total_households
 FROM mf_household mh
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-WHERE mh.status = 1 AND mp.id = ?
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
+WHERE mh.status = 1
 ";
-
+$total_households_where = [];
+$total_households_params = [];
+$total_households_types = "";
+if ($taluka) {
+    $total_households_where[] = "mt.id = ?";
+    $total_households_params[] = $taluka;
+    $total_households_types .= "i";
+}
+if ($panchayat) {
+    $total_households_where[] = "mp.id = ?";
+    $total_households_params[] = $panchayat;
+    $total_households_types .= "i";
+}
+if (!empty($total_households_where)) {
+    $sql_total_households .= " AND " . implode(" AND ", $total_households_where);
+}
 $stmt = $conn->prepare($sql_total_households);
-$stmt->bind_param("i", $panchayat_id);
+if (!empty($total_households_params)) {
+    $stmt->bind_param($total_households_types, ...$total_households_params);
+}
 $stmt->execute();
 $total_households = $stmt->get_result()->fetch_assoc()['total_households'];
 $stmt->close();
@@ -225,6 +252,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
 GROUP BY month ORDER BY month
 ";
@@ -260,6 +288,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
 GROUP BY w.id
 ORDER BY serviced DESC
@@ -291,6 +320,7 @@ JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
 GROUP BY ss.id
 ";
@@ -325,20 +355,17 @@ $seg_compliance = $total_seg_records > 0
 
 /* WADO FILTER LIST */
 $wado_list = [];
-$stmt = $conn->prepare("
+$wado_list_sql = "
 SELECT w.id, w.name
 FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-WHERE mp.id = ?
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 ORDER BY w.name
-");
-$stmt->bind_param("i",$panchayat_id);
-$stmt->execute();
-$res = $stmt->get_result();
+";
+$res = $conn->query($wado_list_sql);
 while($r = $res->fetch_assoc()){
     $wado_list[] = $r;
 }
-$stmt->close();
 
 /* WADO SEGREGATION */
 $sql_wado_seg = "
@@ -351,6 +378,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 WHERE $where_sql
 GROUP BY w.id
@@ -410,6 +438,7 @@ FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 WHERE $where_sql
@@ -469,7 +498,6 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 <div class="row">
 
 <div class="col-md-3">
-<strong>Panchayat ID:</strong> <?= $panchayat_id ?><br>
 <strong>Year:</strong> <?= $year ?><br>
 <strong>Wado:</strong> <?= $wado ? $wado : 'All' ?><br>
 <strong>Months:</strong> <?= implode(',', $months_filter) ?>
@@ -491,7 +519,7 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 <div class="col-md-3">
 <strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
 <strong>Wado Seg Data:</strong><br>
-<?php foreach($wado_seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$wado_seg_data[$i]."%)<br>"; } ?>
+<?php foreach($wado_seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$wado_seg_yes[$i]."%)<br>"; } ?>
 </div>
 
 </div>
@@ -533,6 +561,34 @@ foreach($monthNames as $num=>$name){
 </div>
 
 <div class="col-md-2">
+<label class="form-label">Taluka</label>
+<select name="taluka" class="form-control">
+<option value="">All</option>
+<?php
+$res = $conn->query("SELECT id,name FROM mf_taluka ORDER BY name");
+while($r = $res->fetch_assoc()){
+$sel = (isset($taluka) && $taluka == $r['id']) ? "selected" : "";
+echo "<option value='{$r['id']}' $sel>".htmlspecialchars($r['name'])."</option>";
+}
+?>
+</select>
+</div>
+
+<div class="col-md-2">
+<label class="form-label">Panchayat</label>
+<select name="panchayat" class="form-control">
+<option value="">All</option>
+<?php
+$res = $conn->query("SELECT id,name FROM mf_panchayat ORDER BY name");
+while($r = $res->fetch_assoc()){
+$sel = (isset($panchayat) && $panchayat == $r['id']) ? "selected" : "";
+echo "<option value='{$r['id']}' $sel>".htmlspecialchars($r['name'])."</option>";
+}
+?>
+</select>
+</div>
+
+<div class="col-md-2">
 <label class="form-label">Wado</label>
 <select name="wado" class="form-control">
 <option value="">All</option>
@@ -552,16 +608,16 @@ Apply Filters
 </div>
 
 <div class="col-md-2">
-<a href="index.php" class="btn btn-secondary w-100">
+<a href="admin.php" class="btn btn-secondary w-100">
 Clear Filters
 </a>
 </div>
 
 <div class="col-md-2">
-<a href="?export=excel&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
+<a href="?export=excel&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?><?= $taluka ? '&taluka='.$taluka : '' ?><?= $panchayat ? '&panchayat='.$panchayat : '' ?>" class="btn btn-success w-100">
 Export Excel
 </a>
-<a href="?export=detailed&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-dark w-100 mt-1">
+<a href="?export=detailed&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?><?= $taluka ? '&taluka='.$taluka : '' ?><?= $panchayat ? '&panchayat='.$panchayat : '' ?>" class="btn btn-dark w-100 mt-1">
 Detailed Report
 </a>
 </div>
@@ -570,7 +626,7 @@ Detailed Report
 </div>
 
 <div class="d-flex justify-content-between mb-4">
-<h3><?= htmlspecialchars(ucfirst($_SESSION['username'])) ?> Dashboard (<?= $year ?>)</h3>
+<h3><?= htmlspecialchars(ucfirst($_SESSION['admin_user'])) ?> Admin Dashboard (<?= $year ?>)</h3>
 <a href="?logout=1" class="btn btn-danger">Logout</a>
 </div>
 
