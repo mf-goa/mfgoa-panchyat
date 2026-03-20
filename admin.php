@@ -419,16 +419,23 @@ while($r = $res->fetch_assoc()){
 /* WADO SEGREGATION */
 $sql_wado_seg = "
 SELECT 
-w.name,
-COUNT(DISTINCT msce.household_id) as total,
-COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN msce.household_id END) as segregated,
-COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN msce.household_id END) as not_segregated
-FROM mf_submit_collection_entry msce
+    w.name,
+    COUNT(DISTINCT latest.household_id) as total,
+    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN latest.household_id END) as segregated,
+    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN latest.household_id END) as not_segregated
+FROM (
+    SELECT msce.household_id, MAX(msce.collection_date) as max_date
+    FROM mf_submit_collection_entry msce
+    GROUP BY msce.household_id
+) latest
+JOIN mf_submit_collection_entry msce 
+    ON msce.household_id = latest.household_id 
+    AND msce.collection_date = latest.max_date
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
-JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 WHERE $where_sql
 GROUP BY w.id
 ORDER BY total DESC
@@ -571,7 +578,10 @@ exit;
 <div class="col-md-3">
 <strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
 <strong>Wado Seg Data:</strong><br>
-<?php foreach($wado_seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$wado_seg_yes[$i]."%)<br>"; } ?>
+<?php foreach($wado_seg_labels as $i=>$label){ 
+    $pct = $wado_seg_total[$i] > 0 ? round(($wado_seg_yes[$i] / $wado_seg_total[$i]) * 100,1) : 0;
+    echo htmlspecialchars($label)." (".$pct."%)<br>"; 
+} ?>
 </div>
 
 </div>
