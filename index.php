@@ -375,11 +375,6 @@ while ($r = $res->fetch_assoc()) {
 }
 $stmt->close();
 
- $conn->close();
-
-/* DEBUG TOGGLE */
-$debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
-
 /* ================================
    DETAILED EXPORT (NEW FEATURE)
 ================================ */
@@ -450,6 +445,11 @@ while ($row = $res->fetch_assoc()) {
 echo "</table>";
 exit;
 }
+
+$conn->close();
+
+/* DEBUG TOGGLE */
+$debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 ?>
 
 <!DOCTYPE html>
