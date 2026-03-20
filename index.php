@@ -385,6 +385,9 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 ================================ */
 if (isset($_GET['export']) && $_GET['export'] == 'detailed') {
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 header("Content-Type: application/vnd.ms-excel");
 header("Content-Disposition: attachment; filename=collection_detailed_$year.xls");
 
@@ -416,10 +419,22 @@ WHERE $where_sql
 ORDER BY msce.collection_date DESC
 ";
 
+// Prepare statement with SQL error debugging
 $stmt = $conn->prepare($sql);
+if (!$stmt) {
+    die("SQL Prepare Failed: " . $conn->error);
+}
 $stmt->bind_param($types, ...$params);
-$stmt->execute();
+if (!$stmt->execute()) {
+    die("SQL Execute Failed: " . $stmt->error);
+}
 $res = $stmt->get_result();
+if (!$res) {
+    die("Get Result Failed: " . $stmt->error);
+}
+
+// DEBUG: Show row count
+echo "<tr><td colspan='6'>DEBUG: Rows fetched = " . $res->num_rows . "</td></tr>";
 
 while ($row = $res->fetch_assoc()) {
     echo "<tr>";
