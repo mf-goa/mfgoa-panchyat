@@ -383,18 +383,20 @@ if (isset($_GET['export']) && $_GET['export'] == 'detailed') {
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-header("Content-Type: application/vnd.ms-excel");
-header("Content-Disposition: attachment; filename=collection_detailed_$year.xls");
+header("Content-Type: text/csv");
+header("Content-Disposition: attachment; filename=collection_detailed_$year.csv");
 
-echo "<table border='1'>";
-echo "<tr>
-<th>Date</th>
-<th>Panchayat</th>
-<th>Wado</th>
-<th>Household</th>
-<th>Segregation Status</th>
-<th>User</th>
-</tr>";
+$output = fopen("php://output", "w");
+
+// Header row
+fputcsv($output, [
+    'Date',
+    'Panchayat',
+    'Wado',
+    'Household',
+    'Segregation Status',
+    'User'
+]);
 
 $sql = "
 SELECT 
@@ -428,21 +430,18 @@ if (!$res) {
     die("Get Result Failed: " . $stmt->error);
 }
 
-// DEBUG: Show row count
-echo "<tr><td colspan='6'>DEBUG: Rows fetched = " . $res->num_rows . "</td></tr>";
-
 while ($row = $res->fetch_assoc()) {
-    echo "<tr>";
-    echo "<td>{$row['collection_date']}</td>";
-    echo "<td>".htmlspecialchars($row['panchayat'])."</td>";
-    echo "<td>".htmlspecialchars($row['wado'])."</td>";
-    echo "<td>{$row['household_id']}</td>";
-    echo "<td>".htmlspecialchars($row['segregation_status'])."</td>";
-    echo "<td>".htmlspecialchars($row['user_name'])."</td>";
-    echo "</tr>";
+    fputcsv($output, [
+        $row['collection_date'],
+        $row['panchayat'],
+        $row['wado'],
+        $row['household_id'],
+        $row['segregation_status'],
+        $row['user_name']
+    ]);
 }
 
-echo "</table>";
+fclose($output);
 exit;
 }
 
