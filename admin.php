@@ -1,6 +1,15 @@
 <?php
 session_start();
 
+// ================================
+// DEBUG MODE (EARLY)
+// ================================
+$debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
+if ($debug_mode) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
+
 /* ================================
    DIRECT DB CONNECTION (TEMP)
 ================================= */
@@ -13,6 +22,11 @@ $conn = new mysqli(
 
 if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
+}
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG: DB Connected<br>";
+    echo "</div>";
 }
 
 /* ================================
@@ -106,6 +120,13 @@ $where = ["YEAR(msce.collection_date) = ?"];
 $params = [$year];
 $types = "i";
 
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG: Inputs =&gt; Year: $year, Taluka: ".($taluka??'ALL').", Panchayat: ".($panchayat??'ALL').", Wado: ".($wado??'ALL')."&lt;br&gt;";
+    echo "Months: ".implode(',', $months_filter)."&lt;br&gt;";
+    echo "</div>";
+}
+
 if (!empty($months_filter)) {
     $month_placeholders = implode(',', array_fill(0, count($months_filter), '?'));
     $where[] = "MONTH(msce.collection_date) IN ($month_placeholders)";
@@ -132,6 +153,14 @@ if ($panchayat) {
 }
 
 $where_sql = implode(" AND ", $where);
+
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG WHERE: $where_sql&lt;br&gt;";
+    echo "PARAM TYPES: $types&lt;br&gt;";
+    echo "PARAMS: ".implode(',', $params)."&lt;br&gt;";
+    echo "</div>";
+}
 
 /* ================================
    CSV INJECTION PROTECTION
@@ -203,6 +232,11 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $kpi = $stmt->get_result()->fetch_assoc();
 $stmt->close();
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG KPI: ".json_encode($kpi)."<br>";
+    echo "</div>";
+}
 
 /* TOTAL HOUSEHOLDS KPI */
 $sql_total_households = "
@@ -271,10 +305,15 @@ $month_names = [
 ];
 
 while ($r = $res->fetch_assoc()) {
-$months[] = $month_names[$r['month']];
-$serviced_data[] = $r['serviced'];
+    $months[] = $month_names[$r['month']];
+    $serviced_data[] = $r['serviced'];
 }
 $stmt->close();
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG Monthly Rows: ".count($months)."<br>";
+    echo "</div>";
+}
 
 /* ================================
    WADO BREAKDOWN
@@ -304,11 +343,16 @@ $wado_serviced = [];
 $wado_total = [];
 
 while ($r = $res->fetch_assoc()) {
-$wado_labels[] = $r['name'];
-$wado_serviced[] = $r['serviced'];
-$wado_total[] = $r['total_households'];
+    $wado_labels[] = $r['name'];
+    $wado_serviced[] = $r['serviced'];
+    $wado_total[] = $r['total_households'];
 }
 $stmt->close();
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG Wado Rows: ".count($wado_labels)."<br>";
+    echo "</div>";
+}
 
 /* ================================
    SEGREGATION PIE
@@ -334,10 +378,15 @@ $seg_labels = [];
 $seg_data = [];
 
 while ($r = $res->fetch_assoc()) {
-$seg_labels[] = $r['name'];
-$seg_data[] = $r['total'];
+    $seg_labels[] = $r['name'];
+    $seg_data[] = $r['total'];
 }
 $stmt->close();
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG Seg Rows: ".count($seg_labels)."<br>";
+    echo "</div>";
+}
 
 /* CALCULATE SEGREGATION COMPLIANCE */
 $total_seg_records = array_sum($seg_data);
@@ -402,6 +451,11 @@ while ($r = $res->fetch_assoc()) {
     $wado_seg_no[] = $r['not_segregated'];
 }
 $stmt->close();
+if ($debug_mode) {
+    echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
+    echo "DEBUG Wado Seg Rows: ".count($wado_seg_labels)."<br>";
+    echo "</div>";
+}
 
 /* ================================
    DETAILED EXPORT (NEW FEATURE)
@@ -474,10 +528,8 @@ fclose($output);
 exit;
 }
 
-$conn->close();
+// $conn->close(); // REMOVED: DB is used after this for dropdowns etc.
 
-/* DEBUG TOGGLE */
-$debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 ?>
 
 <!DOCTYPE html>
