@@ -428,6 +428,7 @@ while($r = $res->fetch_assoc()){
 /* WADO SEGREGATION */
 $sql_wado_seg = "
 SELECT 
+    w.id,
     w.name,
     COUNT(DISTINCT mh.id) as total,
     COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
@@ -486,7 +487,11 @@ $wado_seg_total = [];
 $wado_seg_yes = [];
 $wado_seg_no = [];
 
+$seen_wados = [];
 while ($r = $res->fetch_assoc()) {
+    if (isset($seen_wados[$r['id']])) continue;
+    $seen_wados[$r['id']] = true;
+
     $wado_seg_labels[] = $r['name'];
     $wado_seg_total[] = $r['total'];
     $wado_seg_yes[] = $r['segregated'];
@@ -627,7 +632,7 @@ exit;
 
 <div class="col-md-3">
 <strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
-<strong>Wado Seg Count (Full):</strong> <?= count($wado_seg_labels_full) ?><br>
+<strong>Wado Seg Count (Full):</strong> <?= count(array_unique($wado_seg_labels_full)) ?><br>
 <strong>Wado Seg Count (Displayed):</strong> <?= count($wado_seg_labels) ?><br>
 <strong>Wado Seg Data:</strong><br>
 <?php foreach($wado_seg_labels as $i=>$label){ 
