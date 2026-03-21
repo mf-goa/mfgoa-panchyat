@@ -638,9 +638,16 @@ $duplicate_names = count($wado_seg_labels_full) - count(array_unique($wado_seg_l
 echo "<strong>Duplicate Wado Names:</strong> ".$duplicate_names."<br>";
 ?>
 <strong>Wado Seg Count (Displayed):</strong> <?= count($wado_seg_labels) ?><br>
+<?php
+$inactive_wados = count($wado_seg_total_full) - count($wado_labels);
+echo "<strong>Inactive Wados (No Collection):</strong> ".$inactive_wados."<br>";
+?>
 <strong>Wado Seg Data:</strong><br>
 <?php foreach($wado_seg_labels as $i=>$label){ 
     $pct = $wado_seg_total[$i] > 0 ? round(($wado_seg_yes[$i] / $wado_seg_total[$i]) * 100,1) : 0;
+    if($pct > 100 || $pct < 0){
+        echo "<span style='color:red;'>⚠️ INVALID %</span> ";
+    }
     echo htmlspecialchars($label)." (".$pct."%)<br>"; 
 } ?>
 <!-- Wado Seg Totals Check -->
@@ -656,6 +663,28 @@ echo "Not Segregated (sum): ".$total_wado_non."<br>";
 echo "Check (seg + non == total): ".(($total_wado_seg+$total_wado_non)==$total_wado_households ? 'OK' : 'MISMATCH')."<br>";
 ?>
 
+<!-- Performance Snapshot -->
+<br><strong>Performance Snapshot:</strong><br>
+<?php
+$wado_perf = [];
+foreach($wado_seg_labels_full as $i=>$name){
+    $total = $wado_seg_total_full[$i];
+    $seg = $wado_seg_yes_full[$i];
+    $pct = $total > 0 ? ($seg/$total)*100 : 0;
+    $wado_perf[$name] = $pct;
+}
+arsort($wado_perf);
+$top = array_slice($wado_perf, 0, 3, true);
+asort($wado_perf);
+$bottom = array_slice($wado_perf, 0, 3, true);
+
+echo "Top 3 Wados:<br>";
+foreach($top as $n=>$p){ echo "$n (".round($p,1)."%)<br>"; }
+
+echo "<br>Bottom 3 Wados:<br>";
+foreach($bottom as $n=>$p){ echo "$n (".round($p,1)."%)<br>"; }
+?>
+
 <!-- Cross Checks -->
 <br><strong>Cross Checks:</strong><br>
 <?php
@@ -663,6 +692,12 @@ $diff = $kpi['serviced_households'] - $total_seg_records;
 echo "Serviced vs Seg Records Diff: ".$diff."<br>";
 
 echo "Households vs Wado Total Diff: ".($total_households - $total_wado_households)."<br>";
+?>
+
+<!-- Zero Collection Household Check -->
+<br><strong>Zero Collection Households:</strong><br>
+<?php
+echo "Unserviced Households: ".($total_households - $kpi['serviced_households'])."<br>";
 ?>
 
 <!-- Data Quality -->
