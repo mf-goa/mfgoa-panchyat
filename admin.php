@@ -632,7 +632,11 @@ exit;
 
 <div class="col-md-3">
 <strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
-<strong>Wado Seg Count (Full):</strong> <?= count(array_unique($wado_seg_labels_full)) ?><br>
+<strong>Wado Seg Count (Full):</strong> <?= count($wado_seg_total_full) ?><br>
+<?php
+$duplicate_names = count($wado_seg_labels_full) - count(array_unique($wado_seg_labels_full));
+echo "<strong>Duplicate Wado Names:</strong> ".$duplicate_names."<br>";
+?>
 <strong>Wado Seg Count (Displayed):</strong> <?= count($wado_seg_labels) ?><br>
 <strong>Wado Seg Data:</strong><br>
 <?php foreach($wado_seg_labels as $i=>$label){ 
