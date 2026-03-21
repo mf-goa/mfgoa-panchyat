@@ -493,6 +493,11 @@ while ($r = $res->fetch_assoc()) {
     $wado_seg_no[] = $r['not_segregated'];
 }
 $stmt->close();
+// Preserve full data for debug validation
+$wado_seg_labels_full = $wado_seg_labels;
+$wado_seg_total_full = $wado_seg_total;
+$wado_seg_yes_full = $wado_seg_yes;
+$wado_seg_no_full = $wado_seg_no;
 // Limit to top 100 for readability
 $limit = 100;
 $wado_seg_labels = array_slice($wado_seg_labels, 0, $limit);
@@ -622,6 +627,8 @@ exit;
 
 <div class="col-md-3">
 <strong>Wado Count:</strong> <?= count($wado_labels) ?><br>
+<strong>Wado Seg Count (Full):</strong> <?= count($wado_seg_labels_full) ?><br>
+<strong>Wado Seg Count (Displayed):</strong> <?= count($wado_seg_labels) ?><br>
 <strong>Wado Seg Data:</strong><br>
 <?php foreach($wado_seg_labels as $i=>$label){ 
     $pct = $wado_seg_total[$i] > 0 ? round(($wado_seg_yes[$i] / $wado_seg_total[$i]) * 100,1) : 0;
@@ -630,9 +637,9 @@ exit;
 <!-- Wado Seg Totals Check -->
 <br><strong>Wado Seg Totals Check:</strong><br>
 <?php 
-$total_wado_households = array_sum($wado_seg_total);
-$total_wado_seg = array_sum($wado_seg_yes);
-$total_wado_non = array_sum($wado_seg_no);
+$total_wado_households = array_sum($wado_seg_total_full);
+$total_wado_seg = array_sum($wado_seg_yes_full);
+$total_wado_non = array_sum($wado_seg_no_full);
 
 echo "Total (sum): ".$total_wado_households."<br>";
 echo "Segregated (sum): ".$total_wado_seg."<br>";
