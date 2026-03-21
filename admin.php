@@ -614,6 +614,10 @@ exit;
 <strong>Collection Compliance %:</strong> <?= $collection_compliance ?>%<br>
 <strong>Seg Labels:</strong><br>
 <?php foreach($seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$seg_data[$i].")<br>"; } ?>
+<!-- Additional Segregation Validation -->
+<strong>Total Seg Records:</strong> <?= $total_seg_records ?><br>
+<strong>Segregated Count:</strong> <?= $segregated_count ?><br>
+<strong>Seg Compliance % (recalc):</strong> <?= $total_seg_records>0 ? round(($segregated_count/$total_seg_records)*100,1) : 0 ?>%<br>
 </div>
 
 <div class="col-md-3">
@@ -623,6 +627,44 @@ exit;
     $pct = $wado_seg_total[$i] > 0 ? round(($wado_seg_yes[$i] / $wado_seg_total[$i]) * 100,1) : 0;
     echo htmlspecialchars($label)." (".$pct."%)<br>"; 
 } ?>
+<!-- Wado Seg Totals Check -->
+<br><strong>Wado Seg Totals Check:</strong><br>
+<?php 
+$total_wado_households = array_sum($wado_seg_total);
+$total_wado_seg = array_sum($wado_seg_yes);
+$total_wado_non = array_sum($wado_seg_no);
+
+echo "Total (sum): ".$total_wado_households."<br>";
+echo "Segregated (sum): ".$total_wado_seg."<br>";
+echo "Not Segregated (sum): ".$total_wado_non."<br>";
+echo "Check (seg + non == total): ".(($total_wado_seg+$total_wado_non)==$total_wado_households ? 'OK' : 'MISMATCH')."<br>";
+?>
+
+<!-- Cross Checks -->
+<br><strong>Cross Checks:</strong><br>
+<?php
+$diff = $kpi['serviced_households'] - $total_seg_records;
+echo "Serviced vs Seg Records Diff: ".$diff."<br>";
+
+echo "Households vs Wado Total Diff: ".($total_households - $total_wado_households)."<br>";
+?>
+
+<!-- Data Quality -->
+<br><strong>Data Quality:</strong><br>
+<?php
+$null_seg = 0;
+foreach($wado_seg_no as $v){ if($v===null) $null_seg++; }
+echo "Null Seg Entries: ".$null_seg."<br>";
+
+echo "Zero Household Wados: ".count(array_filter($wado_seg_total, fn($v)=>$v==0))."<br>";
+?>
+
+<!-- Filter Validation -->
+<br><strong>Filter Validation:</strong><br>
+<?php
+echo "Months Applied: ".implode(',', $months_filter)."<br>";
+echo "Month Count: ".count($months_filter)."<br>";
+?>
 </div>
 
 </div>
