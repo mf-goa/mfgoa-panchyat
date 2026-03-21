@@ -429,29 +429,55 @@ while($r = $res->fetch_assoc()){
 $sql_wado_seg = "
 SELECT 
     w.name,
-    COUNT(DISTINCT latest.household_id) as total,
-    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN latest.household_id END) as segregated,
-    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN latest.household_id END) as not_segregated
-FROM (
-    SELECT msce.household_id, MAX(msce.collection_date) as max_date
-    FROM mf_submit_collection_entry msce
-    GROUP BY msce.household_id
-) latest
-JOIN mf_submit_collection_entry msce 
-    ON msce.household_id = latest.household_id 
-    AND msce.collection_date = latest.max_date
-JOIN mf_household mh ON mh.id = msce.household_id
-JOIN mf_wado w ON w.id = mh.wado_id
+    COUNT(DISTINCT mh.id) as total,
+    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
+    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN mh.id END) as not_segregated
+FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
+LEFT JOIN mf_household mh ON mh.wado_id = w.id AND mh.status = 1
+LEFT JOIN (
+    SELECT msce1.*
+    FROM mf_submit_collection_entry msce1
+    INNER JOIN (
+        SELECT household_id, MAX(collection_date) as max_date
+        FROM mf_submit_collection_entry
+        GROUP BY household_id
+    ) latest
+    ON msce1.household_id = latest.household_id 
+    AND msce1.collection_date = latest.max_date
+) msce ON msce.household_id = mh.id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
-WHERE $where_sql
-GROUP BY w.id
-ORDER BY total DESC
-";
+WHERE 1=1";
+
+// Apply filters dynamically
+$bind_params = [];
+$bind_types = "";
+
+if ($taluka) {
+    $sql_wado_seg .= " AND mt.id = ?";
+    $bind_types .= "i";
+    $bind_params[] = $taluka;
+}
+if ($panchayat) {
+    $sql_wado_seg .= " AND mp.id = ?";
+    $bind_types .= "i";
+    $bind_params[] = $panchayat;
+}
+if ($wado) {
+    $sql_wado_seg .= " AND w.id = ?";
+    $bind_types .= "i";
+    $bind_params[] = $wado;
+}
+
+$sql_wado_seg .= " GROUP BY w.id ORDER BY total DESC";
 
 $stmt = $conn->prepare($sql_wado_seg);
-$stmt->bind_param($types, ...$params);
+
+if (!empty($bind_params)) {
+    $stmt->bind_param($bind_types, ...$bind_params);
+}
+
 $stmt->execute();
 $res = $stmt->get_result();
 
@@ -467,6 +493,12 @@ while ($r = $res->fetch_assoc()) {
     $wado_seg_no[] = $r['not_segregated'];
 }
 $stmt->close();
+// Limit to top 100 for readability
+$limit = 100;
+$wado_seg_labels = array_slice($wado_seg_labels, 0, $limit);
+$wado_seg_total = array_slice($wado_seg_total, 0, $limit);
+$wado_seg_yes = array_slice($wado_seg_yes, 0, $limit);
+$wado_seg_no = array_slice($wado_seg_no, 0, $limit);
 if ($debug_mode) {
     echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
     echo "DEBUG Wado Seg Rows: ".count($wado_seg_labels)."<br>";
@@ -774,13 +806,30 @@ Detailed Report
 <div class="row mt-3">
 <div class="col-md-12">
 <div class="card p-3 shadow-sm">
-<h6 class="text-center">Wado Wise Segregation Percentage</h6>
+<h6 class="text-center">Wado Wise Segregation Count</h6>
 <canvas id="wadoSegChart" style="height:<?= max(700, count($wado_seg_labels)*25) ?>px"></canvas>
 </div>
 </div>
 </div>
 
 <script>
+
+Chart.register({
+    id: 'valueLabels',
+    afterDatasetsDraw(chart) {
+        const {ctx} = chart;
+        chart.data.datasets.forEach((dataset, i) => {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach((bar, index) => {
+                const value = dataset.data[index];
+                ctx.fillStyle = '#000';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(value, bar.x + 5, bar.y + 3);
+            });
+        });
+    }
+});
 
 new Chart(document.getElementById('monthlyChart'), {
 type: 'bar',
@@ -876,23 +925,26 @@ backgroundColor: '#e74a3b'
 ]
 },
 options: {
-indexAxis: 'y',
-scales: {
-    y: {
-        ticks: {
-            font: {
-                size: 11
-            },
-            callback: function(value) {
-                let label = this.getLabelForValue(value);
-                return label;
-            }
-        }
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+        legend: {
+            position: 'top'
+        },
+        valueLabels: true
     },
-    x: {
-        beginAtZero: true
+    scales: {
+        y: {
+            ticks: {
+                font: {
+                    size: 11
+                }
+            }
+        },
+        x: {
+            beginAtZero: true
+        }
     }
-}
 }
 });
 
