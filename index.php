@@ -704,7 +704,7 @@ Clear Filters
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Wado Wise Collection</h6>
 <div style="overflow-x:auto;">
-<canvas id="wadoChart" style="min-width:1200px; height:<?= max(700, count($wado_labels)*25) ?>px"></canvas>
+<canvas id="wadoChart" style="min-width:<?= max(1200, count($wado_labels)*60) ?>px; height:500px"></canvas>
 </div>
 </div>
 </div>
@@ -736,7 +736,7 @@ Clear Filters
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Wado Wise Segregation Count</h6>
 <div style="overflow-x:auto;">
-<canvas id="wadoSegChart" style="min-width:1200px; height:<?= max(700, count($wado_seg_labels)*25) ?>px"></canvas>
+<canvas id="wadoSegChart" style="min-width:<?= max(1200, count($wado_seg_labels)*60) ?>px; height:500px"></canvas>
 </div>
 </div>
 </div>
@@ -779,10 +779,9 @@ backgroundColor: '#4e73df'
 ]
 },
 options: {
-    indexAxis: 'y',
     responsive: true,
     scales: {
-        x: { beginAtZero: true }
+        y: { beginAtZero: true }
     }
 }
 });
@@ -797,7 +796,6 @@ datasets: [
 ]
 },
 options: {
-indexAxis: 'y',
 responsive: true,
 plugins: {
 legend: {
@@ -805,18 +803,12 @@ position: 'top'
 }
 },
 scales: {
-    y: {
+    x: {
         ticks: {
-            font: {
-                size: 11
-            },
-            callback: function(value) {
-                let label = this.getLabelForValue(value);
-                return label;
-            }
+            font: { size: 11 }
         }
     },
-    x: {
+    y: {
         beginAtZero: true
     }
 }
@@ -871,7 +863,6 @@ backgroundColor: '#e74a3b'
 ]
 },
 options: {
-    indexAxis: 'y',
     responsive: true,
     plugins: {
         legend: {
@@ -880,14 +871,12 @@ options: {
         valueLabels: true
     },
     scales: {
-        y: {
+        x: {
             ticks: {
-                font: {
-                    size: 11
-                }
+                font: { size: 11 }
             }
         },
-        x: {
+        y: {
             beginAtZero: true
         }
     }
