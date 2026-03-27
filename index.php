@@ -704,7 +704,7 @@ Clear Filters
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Wado Wise Collection</h6>
 <div style="overflow-x:auto;">
-<canvas id="wadoChart" style="min-width:<?= max(1200, count($wado_labels)*60) ?>px; height:500px"></canvas>
+<canvas id="wadoChart" style="min-width:<?= max(1200, count($wado_labels)*60) ?>px; height:1000px"></canvas>
 </div>
 </div>
 </div>
@@ -736,7 +736,7 @@ Clear Filters
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Wado Wise Segregation Count</h6>
 <div style="overflow-x:auto;">
-<canvas id="wadoSegChart" style="min-width:<?= max(1200, count($wado_seg_labels)*60) ?>px; height:500px"></canvas>
+<canvas id="wadoSegChart" style="min-width:<?= max(1200, count($wado_seg_labels)*60) ?>px; height:1000px"></canvas>
 </div>
 </div>
 </div>
