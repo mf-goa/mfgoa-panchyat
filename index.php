@@ -82,41 +82,17 @@ endif;
 ================================ */
 
 $panchayat_id = $_SESSION['panchayat_id'];
-$year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
-$months_filter = isset($_GET['months']) ? $_GET['months'] : [];
-$months_filter = array_filter($months_filter, function($m){
-    return is_numeric($m) && $m >= 1 && $m <= 12;
-});
-
-if (empty($months_filter)) {
-    $current_month = date('n');
-    $months_filter = [
-        $current_month,
-        $current_month - 1,
-        $current_month - 2
-    ];
-    $months_filter = array_map(function($m){
-        return $m <= 0 ? $m + 12 : $m;
-    }, $months_filter);
-}
+$from_date = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
+$to_date = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d');
 
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
 
 /* ================================
    BUILD WHERE
 ================================ */
-$where = ["YEAR(msce.collection_date) = ?", "mp.id = ?"];
-$params = [$year, $panchayat_id];
-$types = "ii";
-
-if (!empty($months_filter)) {
-    $month_placeholders = implode(',', array_fill(0, count($months_filter), '?'));
-    $where[] = "MONTH(msce.collection_date) IN ($month_placeholders)";
-    foreach ($months_filter as $m) {
-        $params[] = intval($m);
-        $types .= "i";
-    }
-}
+$where = ["DATE(msce.collection_date) BETWEEN ? AND ?", "mp.id = ?"];
+$params = [$from_date, $to_date, $panchayat_id];
+$types = "ssi";
 
 if ($wado) {
     $where[] = "w.id = ?";
@@ -130,58 +106,13 @@ $where_sql = implode(" AND ", $where);
    CSV INJECTION PROTECTION
 ================================ */
 function safe_csv($value){
+    if ($value === null) return '';
     return preg_replace('/^[-+=@]/', "'$0", $value);
 }
 
 /* ================================
    EXPORT TO EXCEL
 ================================ */
-if (isset($_GET['export']) && $_GET['export'] == 'excel') {
-
-    header("Content-Type: text/csv");
-    header("Content-Disposition: attachment; filename=wado_report_$year.csv");
-
-    $output = fopen("php://output", "w");
-
-    // BOM for Excel
-    fputs($output, "\xEF\xBB\xBF");
-
-    // Header
-    fputcsv($output, [
-        'Wado',
-        'Serviced Households',
-        'Total Households'
-    ]);
-
-    $sql_export = "
-    SELECT 
-    w.name,
-    COUNT(DISTINCT msce.household_id) AS serviced,
-    (SELECT COUNT(*) FROM mf_household WHERE status=1 AND wado_id=w.id) AS total_households
-    FROM mf_submit_collection_entry msce
-    JOIN mf_household mh ON mh.id = msce.household_id
-    JOIN mf_wado w ON w.id = mh.wado_id
-    JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-    WHERE $where_sql
-    GROUP BY w.id
-    ";
-
-    $stmt = $conn->prepare($sql_export);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
-    while ($row = $res->fetch_assoc()) {
-        fputcsv($output, [
-            $row['name'],
-            $row['serviced'],
-            $row['total_households']
-        ]);
-    }
-
-    fclose($output);
-    exit;
-}
 
 /* ================================
    KPI QUERY
@@ -228,8 +159,12 @@ $collection_compliance = $total_households > 0
    MONTHLY TREND
 ================================ */
 $sql_month = "
-SELECT MONTH(msce.collection_date) AS month,
-COUNT(DISTINCT msce.household_id) AS serviced
+SELECT 
+MONTH(msce.collection_date) AS month,
+COUNT(DISTINCT msce.household_id) AS serviced,
+(SELECT COUNT(*) FROM mf_household mh2 
+ JOIN mf_wado w2 ON w2.id = mh2.wado_id
+ WHERE mh2.status = 1 AND w2.panchayat_id = mp.id) AS total_households
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
@@ -245,6 +180,7 @@ $res = $stmt->get_result();
 
 $months = [];
 $serviced_data = [];
+$total_household_trend = [];
 $month_names = [
 1=>"Jan",2=>"Feb",3=>"Mar",4=>"Apr",
 5=>"May",6=>"Jun",7=>"Jul",8=>"Aug",
@@ -254,6 +190,7 @@ $month_names = [
 while ($r = $res->fetch_assoc()) {
 $months[] = $month_names[$r['month']];
 $serviced_data[] = $r['serviced'];
+$total_household_trend[] = $r['total_households'];
 }
 $stmt->close();
 
@@ -323,7 +260,7 @@ $total_seg_records = array_sum($seg_data);
 $segregated_count = 0;
 
 foreach ($seg_labels as $i => $label) {
-    if ($label === 'Segregate') {
+    if (strtolower($label) === 'segregate') {
         $segregated_count += $seg_data[$i];
     }
 }
@@ -426,39 +363,57 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 header("Content-Type: text/csv");
-header("Content-Disposition: attachment; filename=collection_detailed_$year.csv");
+header("Content-Disposition: attachment; filename=collection_detailed_{$from_date}_to_{$to_date}.csv");
 
 $output = fopen("php://output", "w");
 
 // Header row
 fputcsv($output, [
-    'Date',
-    'Panchayat',
-    'Wado',
-    'Household',
-    'Segregation Status',
-    'User'
+    'SR NO','Date','Time','User Name','Panchayat','Wado',
+    'House No','Head of Family','QRCode',
+    'Type','Subtype','Status',
+    'Segregation Status','Remark',
+    'Latitude','Longitude',
+    'New QR Code',
+    'Action','Action By','Action Date',
+    'Household Latitude','Household Longitude','Household Location'
 ]);
 
 $sql = "
 SELECT 
-msce.collection_date,
+DATE_FORMAT(msce.collection_date, '%d-%m-%Y') as date,
+TIME_FORMAT(msce.date, '%h:%i %p') as time,
+CONCAT(u.fname, ' ', u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
-msce.household_id,
-ss.name as segregation_status,
-CONCAT(u.fname, ' ', u.lname) as user_name
+mh.hno as house_no,
+mh.name as head_of_family,
+mh.qr_code,
+mh.subtype_id as type,
+mh.subtype_id as subtype,
+CASE WHEN mh.status = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
+COALESCE(ss.name,'Not Marked') as segregation_status,
+msce.remark,
+msce.latitude,
+msce.longitude,
+mh.old_qr_code as new_qr_code,
+mh.action,
+CONCAT(ua.fname, ' ', ua.lname) as action_by,
+mh.action_ts as action_date,
+mh.latitude as household_latitude,
+mh.longitude as household_longitude,
+mh.location as household_location
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
+LEFT JOIN mf_user ua ON ua.id = mh.action_by
 WHERE $where_sql
 ORDER BY msce.collection_date DESC
 ";
 
-// Prepare statement with SQL error debugging
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
@@ -472,14 +427,32 @@ if (!$res) {
     die("Get Result Failed: " . $stmt->error);
 }
 
+$sr = 1;
 while ($row = $res->fetch_assoc()) {
     fputcsv($output, [
-        $row['collection_date'],
-        $row['panchayat'],
-        $row['wado'],
-        $row['household_id'],
-        $row['segregation_status'],
-        $row['user_name']
+        $sr++,
+        safe_csv($row['date']),
+        safe_csv($row['time']),
+        safe_csv($row['user_name']),
+        safe_csv($row['panchayat']),
+        safe_csv($row['wado']),
+        safe_csv($row['house_no']),
+        safe_csv($row['head_of_family']),
+        safe_csv($row['qr_code']),
+        safe_csv($row['type']),
+        safe_csv($row['subtype']),
+        safe_csv($row['status']),
+        safe_csv($row['segregation_status']),
+        safe_csv($row['remark']),
+        safe_csv($row['latitude']),
+        safe_csv($row['longitude']),
+        safe_csv($row['new_qr_code']),
+        safe_csv($row['action']),
+        safe_csv($row['action_by']),
+        safe_csv($row['action_date']),
+        safe_csv($row['household_latitude']),
+        safe_csv($row['household_longitude']),
+        safe_csv($row['household_location'])
     ]);
 }
 
@@ -512,9 +485,9 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 
 <div class="col-md-3">
 <strong>Panchayat ID:</strong> <?= $panchayat_id ?><br>
-<strong>Year:</strong> <?= $year ?><br>
+<strong>From:</strong> <?= $from_date ?><br>
+<strong>To:</strong> <?= $to_date ?><br>
 <strong>Wado:</strong> <?= $wado ? $wado : 'All' ?><br>
-<strong>Months:</strong> <?= implode(',', $months_filter) ?>
 </div>
 
 <div class="col-md-3">
@@ -525,13 +498,19 @@ $debug_mode = isset($_GET['debug']) && $_GET['debug'] == 1;
 </div>
 
 <div class="col-md-3">
-<strong>Collection Compliance %:</strong> <?= $collection_compliance ?>%<br>
+<strong>Collection Compliance %:</strong><br>
+= Serviced Households / Total Households<br>
+= <?= $kpi['serviced_households'] ?> / <?= $total_households ?><br>
+= <?= $collection_compliance ?>%<br>
 <strong>Seg Labels:</strong><br>
 <?php foreach($seg_labels as $i=>$label){ echo htmlspecialchars($label)." (".$seg_data[$i].")<br>"; } ?>
 <!-- RAW SEGREGATION TOTAL CHECK -->
 <strong>Total Seg Records:</strong> <?= $total_seg_records ?><br>
 <strong>Segregated Count:</strong> <?= $segregated_count ?><br>
-<strong>Seg Compliance % (recalc):</strong> <?= $total_seg_records>0 ? round(($segregated_count/$total_seg_records)*100,1) : 0 ?>%<br>
+<strong>Seg Compliance %:</strong><br>
+= Segregated / Total Seg Records<br>
+= <?= $segregated_count ?> / <?= $total_seg_records ?><br>
+= <?= $total_seg_records>0 ? round(($segregated_count/$total_seg_records)*100,1) : 0 ?>%<br>
 </div>
 
 <div class="col-md-3">
@@ -601,7 +580,13 @@ echo "Households vs Wado Total Diff: ".($total_households - $total_wado_househol
 ?>
 <br><strong>Zero Collection Households:</strong><br>
 <?php
-echo "Unserviced Households: ".($total_households - $kpi['serviced_households'])."<br>";
+$unserviced = $total_households - $kpi['serviced_households'];
+$unserviced_pct = $total_households > 0 ? round(($unserviced/$total_households)*100,1) : 0;
+
+echo "Unserviced Households:<br>";
+echo "= Total - Serviced<br>";
+echo "= $total_households - {$kpi['serviced_households']}<br>";
+echo "= $unserviced ($unserviced_pct%)<br>";
 ?>
 
 <!-- EMPTY / NULL DATA CHECKS -->
@@ -613,12 +598,10 @@ echo "Null Seg Entries: ".$null_seg."<br>";
 echo "Zero Household Wados: ".count(array_filter($wado_seg_total, fn($v)=>$v==0))."<br>";
 ?>
 
-<!-- MONTH FILTER VALIDATION -->
-<br><strong>Filter Validation:</strong><br>
-<?php
-echo "Months Applied: ".implode(',', $months_filter)."<br>";
-echo "Month Count: ".count($months_filter)."<br>";
-?>
+<!-- DATE RANGE FILTER VALIDATION -->
+<br><strong>Date Range Validation:</strong><br>
+From: <?= $from_date ?><br>
+To: <?= $to_date ?><br>
 
 </div>
 </div>
@@ -627,35 +610,14 @@ echo "Month Count: ".count($months_filter)."<br>";
 <div class="card p-3 mb-4 shadow-sm">
 <form method="GET" class="row g-3 align-items-end">
 
-<div class="col-md-2">
-<label class="form-label">Year</label>
-<select name="year" class="form-control">
-<?php
-$currentYear = date('Y');
-for($y=$currentYear;$y>=2022;$y--){
-    $selected = ($y==$year) ? "selected" : "";
-    echo "<option value='$y' $selected>$y</option>";
-}
-?>
-</select>
+<div class="col-md-3">
+<label class="form-label">From Date</label>
+<input type="date" name="from_date" class="form-control" value="<?= htmlspecialchars($from_date) ?>">
 </div>
 
-<div class="col-md-6">
-<label class="form-label">Months</label>
-<select name="months[]" class="form-control" multiple size="3">
-<?php
-$monthNames = [
-1=>"Jan",2=>"Feb",3=>"Mar",4=>"Apr",
-5=>"May",6=>"Jun",7=>"Jul",8=>"Aug",
-9=>"Sep",10=>"Oct",11=>"Nov",12=>"Dec"
-];
-
-foreach($monthNames as $num=>$name){
-    $selected = in_array($num,$months_filter) ? "selected" : "";
-    echo "<option value='$num' $selected>$name</option>";
-}
-?>
-</select>
+<div class="col-md-3">
+<label class="form-label">To Date</label>
+<input type="date" name="to_date" class="form-control" value="<?= htmlspecialchars($to_date) ?>">
 </div>
 
 <div class="col-md-2">
@@ -684,11 +646,8 @@ Clear Filters
 </div>
 
 <div class="col-md-2">
-<a href="?export=excel&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-success w-100">
-Export Excel
-</a>
-<a href="?export=detailed&year=<?= htmlspecialchars($year) ?><?php foreach($months_filter as $m){ echo '&months[]='.intval($m);} ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-dark w-100 mt-1">
-Detailed Report
+<a href="?export=detailed&from_date=<?= $from_date ?>&to_date=<?= $to_date ?><?= $wado ? '&wado='.$wado : '' ?>" class="btn btn-dark w-100 mt-1">
+    ⬇ Detailed Report
 </a>
 </div>
 
@@ -696,7 +655,7 @@ Detailed Report
 </div>
 
 <div class="d-flex justify-content-between mb-4">
-<h3><?= htmlspecialchars(ucfirst($_SESSION['username'])) ?> Dashboard (<?= $year ?>)</h3>
+<h3><?= htmlspecialchars(ucfirst($_SESSION['username'])) ?> Dashboard</h3>
 <a href="?logout=1" class="btn btn-danger">Logout</a>
 </div>
 
@@ -744,7 +703,9 @@ Detailed Report
 <div class="col-md-12">
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Wado Wise Collection</h6>
-<canvas id="wadoChart" style="height:<?= max(700, count($wado_labels)*25) ?>px"></canvas>
+<div style="overflow-x:auto;">
+<canvas id="wadoChart" style="min-width:1200px; height:<?= max(700, count($wado_labels)*25) ?>px"></canvas>
+</div>
 </div>
 </div>
 
@@ -754,13 +715,13 @@ Detailed Report
 <div class="col-md-6">
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Monthly Collection Service Trend</h6>
-<canvas id="monthlyChart" style="height:250px"></canvas>
+<canvas id="monthlyChart" style="height:350px"></canvas>
 </div>
 </div>
 
 <div class="col-md-6">
 <div class="card p-3 shadow-sm h-100">
-<h6 class="text-center">Segregation Percentage</h6>
+<h6 class="text-center">Segregation Level</h6>
 <canvas id="segChart" style="height:250px"></canvas>
 </div>
 </div>
@@ -774,7 +735,9 @@ Detailed Report
 <div class="col-md-12">
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Wado Wise Segregation Count</h6>
-<canvas id="wadoSegChart" style="height:<?= max(700, count($wado_seg_labels)*25) ?>px"></canvas>
+<div style="overflow-x:auto;">
+<canvas id="wadoSegChart" style="min-width:1200px; height:<?= max(700, count($wado_seg_labels)*25) ?>px"></canvas>
+</div>
 </div>
 </div>
 </div>
@@ -792,7 +755,7 @@ Chart.register({
                 ctx.fillStyle = '#000';
                 ctx.font = '10px Arial';
                 ctx.textAlign = 'left';
-                ctx.fillText(value, bar.x + 5, bar.y + 3);
+                ctx.fillText(value, bar.x + 10, bar.y + 3);
             });
         });
     }
@@ -802,10 +765,25 @@ new Chart(document.getElementById('monthlyChart'), {
 type: 'bar',
 data: {
 labels: <?= json_encode($months); ?>,
-datasets: [{
+datasets: [
+{
 label: 'Serviced Households',
-data: <?= json_encode($serviced_data); ?>
-}]
+data: <?= json_encode($serviced_data); ?>,
+backgroundColor: '#1cc88a'
+},
+{
+label: 'Total Households',
+data: <?= json_encode($total_household_trend); ?>,
+backgroundColor: '#4e73df'
+}
+]
+},
+options: {
+    indexAxis: 'y',
+    responsive: true,
+    scales: {
+        x: { beginAtZero: true }
+    }
 }
 });
 
@@ -814,8 +792,8 @@ type: 'bar',
 data: {
 labels: <?= json_encode($wado_labels); ?>,
 datasets: [
-{ label: 'Serviced', data: <?= json_encode($wado_serviced); ?> },
-{ label: 'Total Households', data: <?= json_encode($wado_total); ?> }
+{ label: 'Serviced', data: <?= json_encode($wado_serviced); ?>, backgroundColor: '#1cc88a' },
+{ label: 'Total Households', data: <?= json_encode($wado_total); ?>, backgroundColor: '#4e73df' }
 ]
 },
 options: {
@@ -850,7 +828,8 @@ type: 'pie',
 data: {
 labels: <?= json_encode($seg_labels); ?>,
 datasets: [{
-data: <?= json_encode($seg_data); ?>
+data: <?= json_encode($seg_data); ?>,
+backgroundColor: ['#1cc88a','#e74a3b','#f6c23e','#36b9cc']
 }]
 },
 options: {
@@ -858,7 +837,7 @@ plugins: {
 tooltip: {
 callbacks: {
 label: function(context) {
-let total = context.dataset.data.length ? context.dataset.data.reduce((a,b)=>a+b,0) : 0;
+let total = context.dataset.data.reduce((a,b)=>a+b,0);
 let value = context.raw;
 let pct = ((value/total)*100).toFixed(1);
 return context.label + ": " + value + " (" + pct + "%)";
