@@ -820,7 +820,9 @@ Clear Filters
 <div class="col-md-12">
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Wado Wise Collection</h6>
-<canvas id="wadoChart" style="min-width:<?= max(1200, count($wado_labels)*60) ?>px; height:<?= max(500, count($wado_labels)*20) ?>px"></canvas>
+<div style="overflow-x:auto;">
+<canvas id="wadoChart" style="height:<?= max(500, count($wado_labels)*20) ?>px; min-width:1000px"></canvas>
+</div>
 </div>
 </div>
 
@@ -830,7 +832,9 @@ Clear Filters
 <div class="col-md-6">
 <div class="card p-3 shadow-sm h-100">
 <h6 class="text-center">Monthly Collection Service Trend</h6>
-<canvas id="monthlyChart" style="height:350px"></canvas>
+<div style="overflow-x:auto;">
+<canvas id="monthlyChart" style="height:350px; min-width:600px"></canvas>
+</div>
 </div>
 </div>
 
@@ -850,7 +854,9 @@ Clear Filters
 <div class="col-md-12">
 <div class="card p-3 shadow-sm">
 <h6 class="text-center">Wado Wise Segregation Count</h6>
-<canvas id="wadoSegChart" style="min-width:<?= max(1200, count($wado_seg_labels)*60) ?>px; height:<?= max(500, count($wado_seg_labels)*20) ?>px"></canvas>
+<div style="overflow-x:auto;">
+<canvas id="wadoSegChart" style="height:<?= max(500, count($wado_seg_labels)*20) ?>px; min-width:1000px"></canvas>
+</div>
 </div>
 </div>
 </div>
