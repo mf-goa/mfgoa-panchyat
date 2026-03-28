@@ -302,6 +302,7 @@ LEFT JOIN (
     INNER JOIN (
         SELECT household_id, MAX(collection_date) as max_date
         FROM mf_submit_collection_entry
+        WHERE DATE(collection_date) BETWEEN ? AND ?
         GROUP BY household_id
     ) latest
     ON msce1.household_id = latest.household_id 
@@ -320,9 +321,9 @@ $sql_wado_seg .= " GROUP BY w.id ORDER BY total DESC";
 $stmt = $conn->prepare($sql_wado_seg);
 
 if ($wado) {
-    $stmt->bind_param("ii", $panchayat_id, $wado);
+    $stmt->bind_param("ssii", $from_date, $to_date, $panchayat_id, $wado);
 } else {
-    $stmt->bind_param("i", $panchayat_id);
+    $stmt->bind_param("ssi", $from_date, $to_date, $panchayat_id);
 }
 
 $stmt->execute();
@@ -593,9 +594,9 @@ echo "= $unserviced ($unserviced_pct%)<br>";
 <br><strong>Data Quality:</strong><br>
 <?php
 $null_seg = 0;
-foreach($wado_seg_no as $v){ if($v===null) $null_seg++; }
+foreach($wado_seg_no_full as $v){ if($v===null) $null_seg++; }
 echo "Null Seg Entries: ".$null_seg."<br>";
-echo "Zero Household Wados: ".count(array_filter($wado_seg_total, fn($v)=>$v==0))."<br>";
+echo "Zero Household Wados: ".count(array_filter($wado_seg_total_full, fn($v)=>$v==0))."<br>";
 ?>
 
 <!-- DATE RANGE FILTER VALIDATION -->
@@ -754,8 +755,8 @@ Chart.register({
                 const value = dataset.data[index];
                 ctx.fillStyle = '#000';
                 ctx.font = '10px Arial';
-                ctx.textAlign = 'left';
-                ctx.fillText(value, bar.x + 10, bar.y + 3);
+                ctx.textAlign = 'center';
+                ctx.fillText(value, bar.x, bar.y - 5);
             });
         });
     }
@@ -831,7 +832,7 @@ callbacks: {
 label: function(context) {
 let total = context.dataset.data.reduce((a,b)=>a+b,0);
 let value = context.raw;
-let pct = ((value/total)*100).toFixed(1);
+let pct = total > 0 ? ((value/total)*100).toFixed(1) : 0;
 return context.label + ": " + value + " (" + pct + "%)";
 }
 }
