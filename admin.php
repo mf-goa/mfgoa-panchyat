@@ -23,6 +23,8 @@ $conn = new mysqli(
 if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
+$conn->query("SET time_zone = '+05:30'");
+date_default_timezone_set('Asia/Kolkata');
 if ($debug_mode) {
     echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
     echo "DEBUG: DB Connected<br>";
@@ -92,9 +94,13 @@ endif;
 /* ================================
    DASHBOARD LOGIC
 ================================ */
-$from_date = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
-$to_date = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d');
-
+if (!isset($_GET['from_date']) && !isset($_GET['to_date'])) {
+    $from_date = date('Y-m-01', strtotime('-2 months'));
+    $to_date = date('Y-m-t');
+} else {
+    $from_date = $_GET['from_date'];
+    $to_date = $_GET['to_date'];
+}
 // Safety check
 if ($from_date > $to_date) {
     [$from_date, $to_date] = [$to_date, $from_date];
@@ -156,7 +162,7 @@ function safe_csv($value){
 ================================ */
 $sql_kpi = "
 SELECT 
-COUNT(*) AS total_collections,
+COUNT(msce.segregation_status_id) AS total_collections,
 COUNT(DISTINCT msce.household_id) AS serviced_households,
 MAX(msce.collection_date) AS last_collection
 FROM mf_submit_collection_entry msce
@@ -361,9 +367,9 @@ $sql_wado_seg = "
 SELECT 
     w.id,
     w.name,
-    COUNT(DISTINCT mh.id) as total,
-    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
-    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN mh.id END) as not_segregated
+    COUNT(DISTINCT msce.household_id) as total,
+    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN msce.household_id END) as segregated,
+    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' THEN msce.household_id END) as not_segregated
 FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
@@ -496,9 +502,14 @@ w.name as wado,
 mh.hno,
 mh.name as head_name,
 mh.qr_code,
-mh.subtype_id,
-mh.status,
-ss.name as segregation_status,
+COALESCE(t.name,'Not Defined') as type,
+COALESCE(st.name,'Not Defined') as subtype,
+CASE 
+WHEN msce.home_status_id = 1 THEN 'Open'
+WHEN msce.home_status_id = 2 THEN 'Closed'
+ELSE 'Unknown'
+END as status,
+CONCAT(COALESCE(ss.name,'Not Marked'),' / ',COALESCE(sss.name,'')) as segregation_status,
 msce.remark,
 msce.latitude,
 msce.longitude,
@@ -515,9 +526,12 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE $where_sql
+WHERE DATE(msce.date) BETWEEN ? AND ?
 ORDER BY msce.collection_date DESC
 ";
 
@@ -539,9 +553,9 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['hno']),
         safe_csv($row['head_name']),
         safe_csv($row['qr_code']),
-        '', // Type (not available directly)
-        safe_csv($row['subtype_id']),
-        safe_csv($row['status'] == 1 ? 'ACTIVE' : 'INACTIVE'),
+        safe_csv($row['type']),
+        safe_csv($row['subtype']),
+        safe_csv($row['status']),
         safe_csv($row['segregation_status']),
         safe_csv($row['remark']),
         safe_csv($row['latitude']),
@@ -866,6 +880,8 @@ Clear Filters
 Chart.register({
     id: 'valueLabels',
     afterDatasetsDraw(chart) {
+        // VALUE LABEL CLUTTER FIX
+        if (chart.data.labels.length > 30) return;
         const {ctx} = chart;
         chart.data.datasets.forEach((dataset, i) => {
             const meta = chart.getDatasetMeta(i);
@@ -910,22 +926,16 @@ datasets: [
 ]
 },
 options: {
-responsive: true,
-plugins: {
-legend: {
-position: 'top'
-}
-},
-scales: {
-    x: {
-        ticks: {
-            font: { size: 11 }
-        }
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+        legend: { position: 'top' },
+        tooltip: { mode: 'index', intersect: false }
     },
-    y: {
-        beginAtZero: true
+    scales: {
+        x: { ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true }
     }
-}
 }
 });
 
@@ -977,23 +987,14 @@ backgroundColor: '#e74a3b'
 },
 options: {
     responsive: true,
+    interaction: { mode: 'index', intersect: false },
     plugins: {
-        legend: {
-            position: 'top'
-        },
-        valueLabels: true
+        legend: { position: 'top' },
+        tooltip: { mode: 'index', intersect: false }
     },
     scales: {
-        x: {
-            ticks: {
-                font: {
-                    size: 11
-                }
-            }
-        },
-        y: {
-            beginAtZero: true
-        }
+        x: { ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true }
     }
 }
 });

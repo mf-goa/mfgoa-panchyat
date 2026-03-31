@@ -14,6 +14,8 @@ $conn = new mysqli(
 if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
+$conn->query("SET time_zone = '+05:30'");
+date_default_timezone_set('Asia/Kolkata');
 
 /* ================================
    HARDCODED USERS
@@ -82,8 +84,13 @@ endif;
 ================================ */
 
 $panchayat_id = $_SESSION['panchayat_id'];
-$from_date = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
-$to_date = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-d');
+if (!isset($_GET['from_date']) && !isset($_GET['to_date'])) {
+    $from_date = date('Y-m-01', strtotime('-2 months'));
+    $to_date = date('Y-m-t');
+} else {
+    $from_date = $_GET['from_date'];
+    $to_date = $_GET['to_date'];
+}
 
 $wado = isset($_GET['wado']) ? intval($_GET['wado']) : null;
 
@@ -119,7 +126,7 @@ function safe_csv($value){
 ================================ */
 $sql_kpi = "
 SELECT 
-COUNT(*) AS total_collections,
+COUNT(msce.segregation_status_id) AS total_collections,
 COUNT(DISTINCT msce.household_id) AS serviced_households,
 MAX(msce.collection_date) AS last_collection
 FROM mf_submit_collection_entry msce
@@ -287,12 +294,13 @@ while($r = $res->fetch_assoc()){
 $stmt->close();
 
 /* WADO SEGREGATION */
+// WADO SEG FIX
 $sql_wado_seg = "
 SELECT 
     w.name,
-    COUNT(DISTINCT mh.id) as total,
-    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
-    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' OR ss.name IS NULL THEN mh.id END) as not_segregated
+    COUNT(DISTINCT msce.household_id) as total,
+    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN msce.household_id END) as segregated,
+    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' THEN msce.household_id END) as not_segregated
 FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 LEFT JOIN mf_household mh ON mh.wado_id = w.id AND mh.status = 1
@@ -390,10 +398,14 @@ w.name as wado,
 mh.hno as house_no,
 mh.name as head_of_family,
 mh.qr_code,
-mh.subtype_id as type,
-mh.subtype_id as subtype,
-CASE WHEN mh.status = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
-COALESCE(ss.name,'Not Marked') as segregation_status,
+COALESCE(t.name,'') as type,
+COALESCE(st.name,'') as subtype,
+CASE 
+WHEN msce.home_status_id = 1 THEN 'Open'
+WHEN msce.home_status_id = 2 THEN 'Closed'
+ELSE 'Unknown'
+END as status,
+CONCAT(COALESCE(ss.name,'Not Marked'),' / ',COALESCE(sss.name,'')) as segregation_status,
 msce.remark,
 msce.latitude,
 msce.longitude,
@@ -406,12 +418,15 @@ mh.longitude as household_longitude,
 mh.location as household_location
 FROM mf_submit_collection_entry msce
 JOIN mf_household mh ON mh.id = msce.household_id
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE $where_sql
+WHERE DATE(msce.date) BETWEEN ? AND ? AND mp.id = ?
 ORDER BY msce.collection_date DESC
 ";
 
@@ -430,6 +445,7 @@ if (!$res) {
 
 $sr = 1;
 while ($row = $res->fetch_assoc()) {
+    // Removed debug echo to avoid corrupting CSV output
     fputcsv($output, [
         $sr++,
         safe_csv($row['date']),
@@ -599,6 +615,25 @@ echo "Null Seg Entries: ".$null_seg."<br>";
 echo "Zero Household Wados: ".count(array_filter($wado_seg_total_full, fn($v)=>$v==0))."<br>";
 ?>
 
+<?php
+// TYPE / SUBTYPE DEBUG SAMPLE
+$sql_debug_type = "
+SELECT 
+COALESCE(t.name,'Not Defined') as type,
+COALESCE(st.name,'Not Defined') as subtype
+FROM mf_household mh
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
+LIMIT 1
+";
+$res_debug = $conn->query($sql_debug_type);
+
+if($res_debug && $row_debug = $res_debug->fetch_assoc()){
+    echo "<br><strong>Type/Subtype Sample:</strong><br>";
+    echo htmlspecialchars($row_debug['type'])." / ".htmlspecialchars($row_debug['subtype'])."<br>";
+}
+?>
+
 <!-- DATE RANGE FILTER VALIDATION -->
 <br><strong>Date Range Validation:</strong><br>
 From: <?= $from_date ?><br>
@@ -748,6 +783,7 @@ Clear Filters
 Chart.register({
     id: 'valueLabels',
     afterDatasetsDraw(chart) {
+        if (chart.data.labels.length > 30) return;
         const {ctx} = chart;
         chart.data.datasets.forEach((dataset, i) => {
             const meta = chart.getDatasetMeta(i);
@@ -797,22 +833,24 @@ datasets: [
 ]
 },
 options: {
-responsive: true,
-plugins: {
-legend: {
-position: 'top'
-}
-},
-scales: {
-    x: {
-        ticks: {
-            font: { size: 11 }
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+        tooltip: { mode: 'index', intersect: false },
+        legend: {
+            position: 'top'
         }
     },
-    y: {
-        beginAtZero: true
+    scales: {
+        x: {
+            ticks: {
+                font: { size: 11 }
+            }
+        },
+        y: {
+            beginAtZero: true
+        }
     }
-}
 }
 });
 
@@ -865,7 +903,9 @@ backgroundColor: '#e74a3b'
 },
 options: {
     responsive: true,
+    interaction: { mode: 'index', intersect: false },
     plugins: {
+        tooltip: { mode: 'index', intersect: false },
         legend: {
             position: 'top'
         },
