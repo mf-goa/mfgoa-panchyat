@@ -492,7 +492,7 @@ fputcsv($output, [
     'Household Location'
 ]);
 
-$sql = "
+ $sql = "
 SELECT 
 msce.collection_date,
 TIME(msce.date) as time,
@@ -531,7 +531,7 @@ LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE DATE(msce.date) BETWEEN ? AND ?
+WHERE $where_sql
 ORDER BY msce.collection_date DESC
 ";
 

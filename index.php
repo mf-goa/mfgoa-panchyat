@@ -426,7 +426,7 @@ LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE DATE(msce.date) BETWEEN ? AND ? AND mp.id = ?
+WHERE $where_sql
 ORDER BY msce.collection_date DESC
 ";
 
