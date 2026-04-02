@@ -379,15 +379,16 @@ $output = fopen("php://output", "w");
 // Header row
 fputcsv($output, [
     'SR NO','Date','Time','User Name','Panchayat','Wado',
-    'House No','Head of Family','QRCode',
+    'House No','Head of Family','QRCode','Old QR Code',
     'Type','Subtype','Status',
-    'Segregation Status','Remark',
+    'Segregation Status',
     'Latitude','Longitude',
     'New QR Code',
     'Action','Action By','Action Date',
     'Household Latitude','Household Longitude','Household Location'
 ]);
 
+// SELECT block with old_qr_code, and remark removed
 $sql = "
 SELECT 
 DATE_FORMAT(msce.collection_date, '%d-%m-%Y') as date,
@@ -398,6 +399,7 @@ w.name as wado,
 mh.hno as house_no,
 mh.name as head_of_family,
 mh.qr_code,
+mh.old_qr_code,
 COALESCE(t.name,'') as type,
 COALESCE(st.name,'') as subtype,
 CASE 
@@ -406,7 +408,6 @@ WHEN msce.home_status_id = 2 THEN 'Closed'
 ELSE 'Unknown'
 END as status,
 CONCAT(COALESCE(ss.name,'Not Marked'),' / ',COALESCE(sss.name,'')) as segregation_status,
-msce.remark,
 msce.latitude,
 msce.longitude,
 mh.old_qr_code as new_qr_code,
@@ -450,9 +451,9 @@ if (!$res) {
     die("Get Result Failed: " . $stmt->error);
 }
 
+// CSV row mapping
 $sr = 1;
 while ($row = $res->fetch_assoc()) {
-    // Removed debug echo to avoid corrupting CSV output
     fputcsv($output, [
         $sr++,
         safe_csv($row['date']),
@@ -463,11 +464,11 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['house_no']),
         safe_csv($row['head_of_family']),
         safe_csv($row['qr_code']),
+        safe_csv($row['old_qr_code']),
         safe_csv($row['type']),
         safe_csv($row['subtype']),
         safe_csv($row['status']),
         safe_csv($row['segregation_status']),
-        safe_csv($row['remark']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
         safe_csv($row['new_qr_code']),
