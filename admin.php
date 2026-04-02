@@ -492,7 +492,8 @@ fputcsv($output, [
     'Household Location'
 ]);
 
- $sql = "
+// Build SQL using msce.date for filtering, and append filters dynamically
+$sql = "
 SELECT 
 msce.collection_date,
 TIME(msce.date) as time,
@@ -531,12 +532,37 @@ LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE $where_sql
-ORDER BY msce.collection_date DESC
+WHERE DATE(msce.date) BETWEEN ? AND ?
 ";
+if ($wado) {
+    $sql .= " AND w.id = ?";
+}
+if ($taluka) {
+    $sql .= " AND mt.id = ?";
+}
+if ($panchayat) {
+    $sql .= " AND mp.id = ?";
+}
+$sql .= " ORDER BY msce.collection_date DESC";
+
+// Prepare binding
+$export_params = [$from_date, $to_date];
+$export_types = "ss";
+if ($wado) {
+    $export_types .= "i";
+    $export_params[] = $wado;
+}
+if ($taluka) {
+    $export_types .= "i";
+    $export_params[] = $taluka;
+}
+if ($panchayat) {
+    $export_types .= "i";
+    $export_params[] = $panchayat;
+}
 
 $stmt = $conn->prepare($sql);
-$stmt->bind_param($types, ...$params);
+$stmt->bind_param($export_types, ...$export_params);
 $stmt->execute();
 $res = $stmt->get_result();
 
