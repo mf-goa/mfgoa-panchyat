@@ -492,11 +492,10 @@ fputcsv($output, [
     'Household Location'
 ]);
 
-// Build SQL using msce.date for filtering, and append filters dynamically
-// Build SQL using msce.date for filtering, and append filters dynamically
+// NEW: Household-based logic, only latest valid collection per household in range (or blank if none)
 $sql = "
 SELECT 
-msce.collection_date,
+DATE_FORMAT(msce.date, '%Y-%m-%d') as collection_date,
 TIME(msce.date) as time,
 CONCAT(u.fname,' ',u.lname) as user_name,
 mp.name as panchayat,
@@ -510,9 +509,9 @@ COALESCE(st.name,'Not Defined') as subtype,
 CASE 
 WHEN msce.home_status_id = 1 THEN 'Open'
 WHEN msce.home_status_id = 2 THEN 'Closed'
-ELSE 'Unknown'
+ELSE ''
 END as status,
-CONCAT(COALESCE(ss.name,'Not Marked'),' / ',COALESCE(sss.name,'')) as segregation_status,
+CONCAT(COALESCE(ss.name,''),' / ',COALESCE(sss.name,'')) as segregation_status,
 msce.latitude,
 msce.longitude,
 mh.qr_code as new_qr,
@@ -522,18 +521,35 @@ mh.action_ts,
 mh.latitude as hh_lat,
 mh.longitude as hh_lng,
 mh.location as hh_location
-FROM mf_submit_collection_entry msce
-JOIN mf_household mh ON mh.id = msce.household_id
+
+FROM mf_household mh
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
+
+LEFT JOIN (
+    SELECT msce1.*
+    FROM mf_submit_collection_entry msce1
+    INNER JOIN (
+        SELECT household_id, MAX(date) as max_date
+        FROM mf_submit_collection_entry
+        WHERE DATE(date) BETWEEN ? AND ?
+        AND home_status_id IN (1,2)
+        AND segregation_status_id IS NOT NULL
+        GROUP BY household_id
+    ) latest
+    ON msce1.household_id = latest.household_id
+    AND msce1.date = latest.max_date
+) msce ON msce.household_id = mh.id
+
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE DATE(msce.date) BETWEEN ? AND ?
+
+WHERE mh.status = 1
 ";
 if ($wado) {
     $sql .= " AND w.id = ?";
@@ -544,7 +560,7 @@ if ($taluka) {
 if ($panchayat) {
     $sql .= " AND mp.id = ?";
 }
-$sql .= " ORDER BY msce.collection_date DESC";
+$sql .= " ORDER BY collection_date DESC";
 
 // Prepare binding
 $export_params = [$from_date, $to_date];

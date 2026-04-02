@@ -388,10 +388,10 @@ fputcsv($output, [
     'Household Latitude','Household Longitude','Household Location'
 ]);
 
-// SELECT block with old_qr_code, and remark removed
+// HOUSEHOLD-BASED DETAILED EXPORT: all households, only latest valid collection per household in date range
 $sql = "
 SELECT 
-DATE_FORMAT(msce.collection_date, '%d-%m-%Y') as date,
+DATE_FORMAT(msce.date, '%d-%m-%Y') as date,
 TIME_FORMAT(msce.date, '%h:%i %p') as time,
 CONCAT(u.fname, ' ', u.lname) as user_name,
 mp.name as panchayat,
@@ -405,34 +405,50 @@ COALESCE(st.name,'') as subtype,
 CASE 
 WHEN msce.home_status_id = 1 THEN 'Open'
 WHEN msce.home_status_id = 2 THEN 'Closed'
-ELSE 'Unknown'
+ELSE ''
 END as status,
-CONCAT(COALESCE(ss.name,'Not Marked'),' / ',COALESCE(sss.name,'')) as segregation_status,
+CONCAT(COALESCE(ss.name,''),' / ',COALESCE(sss.name,'')) as segregation_status,
 msce.latitude,
 msce.longitude,
-mh.old_qr_code as new_qr_code,
+mh.qr_code as new_qr_code,
 mh.action,
 CONCAT(ua.fname, ' ', ua.lname) as action_by,
 mh.action_ts as action_date,
 mh.latitude as household_latitude,
 mh.longitude as household_longitude,
 mh.location as household_location
-FROM mf_submit_collection_entry msce
-JOIN mf_household mh ON mh.id = msce.household_id
-LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
-LEFT JOIN mf_household_type t ON t.id = st.type_id
+
+FROM mf_household mh
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+
+LEFT JOIN (
+    SELECT msce1.*
+    FROM mf_submit_collection_entry msce1
+    INNER JOIN (
+        SELECT household_id, MAX(date) as max_date
+        FROM mf_submit_collection_entry
+        WHERE DATE(date) BETWEEN ? AND ?
+        AND home_status_id IN (1,2)
+        AND segregation_status_id IS NOT NULL
+        GROUP BY household_id
+    ) latest
+    ON msce1.household_id = latest.household_id
+    AND msce1.date = latest.max_date
+) msce ON msce.household_id = mh.id
+
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
-WHERE DATE(msce.date) BETWEEN ? AND ? AND mp.id = ?
+
+WHERE mh.status = 1 AND mp.id = ?
 ";
 if ($wado) {
     $sql .= " AND w.id = ?";
 }
-$sql .= " ORDER BY msce.collection_date DESC";
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
