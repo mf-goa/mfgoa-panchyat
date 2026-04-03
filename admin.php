@@ -249,14 +249,30 @@ $res = $stmt->get_result();
 $months = [];
 $serviced_data = [];
 $month_names = [
-1=>"Jan",2=>"Feb",3=>"Mar",4=>"Apr",
-5=>"May",6=>"Jun",7=>"Jul",8=>"Aug",
-9=>"Sep",10=>"Oct",11=>"Nov",12=>"Dec"
+    1=>"Jan",2=>"Feb",3=>"Mar",4=>"Apr",
+    5=>"May",6=>"Jun",7=>"Jul",8=>"Aug",
+    9=>"Sep",10=>"Oct",11=>"Nov",12=>"Dec"
 ];
 
+// Ensure all months in range are present, even with zeroes
+$month_range = [];
+$start = strtotime($from_date);
+$end = strtotime($to_date);
+while ($start <= $end) {
+    $m = date('n', $start);
+    $month_range[$m] = 0;
+    $start = strtotime('+1 month', $start);
+}
+
 while ($r = $res->fetch_assoc()) {
-    $months[] = $month_names[$r['month']];
-    $serviced_data[] = $r['serviced'];
+    $month_range[$r['month']] = (int)$r['serviced'];
+}
+
+$months = [];
+$serviced_data = [];
+foreach ($month_range as $m => $val) {
+    $months[] = $month_names[$m];
+    $serviced_data[] = $val;
 }
 $stmt->close();
 if ($debug_mode) {
@@ -299,6 +315,12 @@ while ($r = $res->fetch_assoc()) {
     $wado_serviced[] = $r['serviced'];
     $wado_total[] = $r['total_households'];
 }
+// WADO BREAKDOWN FIX: Ensure chart always has data
+if (empty($wado_labels)) {
+    $wado_labels = ['No Data'];
+    $wado_serviced = [0];
+    $wado_total = [0];
+}
 $stmt->close();
 if ($debug_mode) {
     echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
@@ -334,6 +356,11 @@ $seg_data = [];
 while ($r = $res->fetch_assoc()) {
     $seg_labels[] = $r['name'];
     $seg_data[] = $r['total'];
+}
+// SEGREGATION PIE FIX: Ensure chart always has data
+if (empty($seg_labels)) {
+    $seg_labels = ['No Data'];
+    $seg_data = [0];
 }
 $stmt->close();
 if ($debug_mode) {
@@ -459,6 +486,13 @@ $wado_seg_labels = array_slice($wado_seg_labels, 0, $limit);
 $wado_seg_total = array_slice($wado_seg_total, 0, $limit);
 $wado_seg_yes = array_slice($wado_seg_yes, 0, $limit);
 $wado_seg_no = array_slice($wado_seg_no, 0, $limit);
+// WADO SEGREGATION FIX: Ensure chart always has data
+if (empty($wado_seg_labels)) {
+    $wado_seg_labels = ['No Data'];
+    $wado_seg_total = [0];
+    $wado_seg_yes = [0];
+    $wado_seg_no = [0];
+}
 if ($debug_mode) {
     echo "<div style='background:#111;color:#0f0;padding:10px;font-size:12px;'>";
     echo "DEBUG Wado Seg Rows: ".count($wado_seg_labels)."<br>";

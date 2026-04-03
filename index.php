@@ -233,10 +233,31 @@ $month_names = [
 9=>"Sep",10=>"Oct",11=>"Nov",12=>"Dec"
 ];
 
+$month_range = [];
+$start = strtotime($from_date);
+$end = strtotime($to_date);
+
+while ($start <= $end) {
+    $m = date('n', $start);
+    $month_range[$m] = ['serviced' => 0, 'total' => 0];
+    $start = strtotime('+1 month', $start);
+}
+
 while ($r = $res->fetch_assoc()) {
-$months[] = $month_names[$r['month']];
-$serviced_data[] = $r['serviced'];
-$total_household_trend[] = $r['total_households'];
+    $month_range[$r['month']] = [
+        'serviced' => (int)$r['serviced'],
+        'total' => (int)$r['total_households']
+    ];
+}
+
+$months = [];
+$serviced_data = [];
+$total_household_trend = [];
+
+foreach ($month_range as $m => $val) {
+    $months[] = $month_names[$m];
+    $serviced_data[] = $val['serviced'];
+    $total_household_trend[] = $val['total'];
 }
 $stmt->close();
 
@@ -268,12 +289,22 @@ $wado_labels = [];
 $wado_serviced = [];
 $wado_total = [];
 
+$wado_labels = [];
+$wado_serviced = [];
+$wado_total = [];
 while ($r = $res->fetch_assoc()) {
-$wado_labels[] = $r['name'];
-$wado_serviced[] = $r['serviced'];
-$wado_total[] = $r['total_households'];
+    $wado_labels[] = $r['name'];
+    $wado_serviced[] = $r['serviced'];
+    $wado_total[] = $r['total_households'];
 }
 $stmt->close();
+
+// WADO BREAKDOWN FIX
+if (empty($wado_labels)) {
+    $wado_labels = ['No Data'];
+    $wado_serviced = [0];
+    $wado_total = [0];
+}
 
 /* ================================
    SEGREGATION PIE
@@ -299,11 +330,19 @@ $res = $stmt->get_result();
 $seg_labels = [];
 $seg_data = [];
 
+$seg_labels = [];
+$seg_data = [];
 while ($r = $res->fetch_assoc()) {
-$seg_labels[] = $r['name'];
-$seg_data[] = $r['total'];
+    $seg_labels[] = $r['name'];
+    $seg_data[] = $r['total'];
 }
 $stmt->close();
+
+// SEGREGATION PIE FIX
+if (empty($seg_labels)) {
+    $seg_labels = ['No Data'];
+    $seg_data = [0];
+}
 
 /* CALCULATE SEGREGATION COMPLIANCE */
 $total_seg_records = array_sum($seg_data);
@@ -408,6 +447,14 @@ $wado_seg_labels = array_slice($wado_seg_labels, 0, $limit);
 $wado_seg_total = array_slice($wado_seg_total, 0, $limit);
 $wado_seg_yes = array_slice($wado_seg_yes, 0, $limit);
 $wado_seg_no = array_slice($wado_seg_no, 0, $limit);
+
+// WADO SEG FIX
+if (empty($wado_seg_labels)) {
+    $wado_seg_labels = ['No Data'];
+    $wado_seg_total = [0];
+    $wado_seg_yes = [0];
+    $wado_seg_no = [0];
+}
 
 /* ================================
    DETAILED EXPORT (NEW FEATURE)
