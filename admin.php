@@ -491,6 +491,7 @@ fputcsv($output, [
     'Subtype',
     'Status',
     'Segregation Status',
+    'Remark',
     'Latitude',
     'Longitude',
     'New QR Code',
@@ -522,6 +523,7 @@ WHEN msce.home_status_id = 2 THEN 'Closed'
 ELSE ''
 END as status,
 CONCAT(COALESCE(ss.name,''),' / ',COALESCE(sss.name,'')) as segregation_status,
+msce.remark,
 msce.latitude,
 msce.longitude,
 mh.qr_code as new_qr,
@@ -611,6 +613,7 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['subtype']),
         safe_csv($row['status']),
         safe_csv($row['segregation_status']),
+        safe_csv($row['remark']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
         safe_csv($row['new_qr']),
