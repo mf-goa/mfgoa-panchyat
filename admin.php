@@ -375,9 +375,9 @@ $sql_wado_seg = "
 SELECT 
     w.id,
     w.name,
-    COUNT(DISTINCT msce.household_id) as total,
-    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN msce.household_id END) as segregated,
-    COUNT(DISTINCT CASE WHEN ss.name != 'Segregate' THEN msce.household_id END) as not_segregated
+    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL THEN msce.household_id END) as total,
+    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL AND ss.name = 'Segregate' THEN msce.household_id END) as segregated,
+    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL AND ss.name != 'Segregate' THEN msce.household_id END) as not_segregated
 FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
@@ -389,6 +389,8 @@ LEFT JOIN (
         SELECT household_id, MAX(collection_date) as max_date
         FROM mf_submit_collection_entry
         WHERE DATE(collection_date) BETWEEN ? AND ?
+        AND home_status_id IN (1,2)
+        AND segregation_status_id IS NOT NULL
         GROUP BY household_id
     ) latest
     ON msce1.household_id = latest.household_id 
