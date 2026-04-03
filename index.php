@@ -134,6 +134,8 @@ JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 ";
 
 $stmt = $conn->prepare($sql_kpi);
@@ -177,6 +179,8 @@ JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY month ORDER BY month
 ";
 
@@ -214,6 +218,8 @@ JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY w.id
 ORDER BY serviced DESC
 ";
@@ -245,6 +251,8 @@ JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY ss.id
 ";
 
@@ -295,6 +303,7 @@ $stmt->close();
 
 /* WADO SEGREGATION */
 // WADO SEG FIX
+// WADO SEG FIX
 $sql_wado_seg = "
 SELECT 
     w.name,
@@ -311,6 +320,8 @@ LEFT JOIN (
         SELECT household_id, MAX(collection_date) as max_date
         FROM mf_submit_collection_entry
         WHERE DATE(collection_date) BETWEEN ? AND ?
+        AND home_status_id IN (1,2)
+        AND segregation_status_id IS NOT NULL
         GROUP BY household_id
     ) latest
     ON msce1.household_id = latest.household_id 

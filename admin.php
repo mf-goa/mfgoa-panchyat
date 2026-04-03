@@ -171,6 +171,8 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 ";
 
 $stmt = $conn->prepare($sql_kpi);
@@ -234,6 +236,8 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY month ORDER BY month
 ";
 
@@ -275,6 +279,8 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY w.id
 ORDER BY serviced DESC
 ";
@@ -312,6 +318,8 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 WHERE $where_sql
+AND msce.home_status_id IN (1,2)
+AND msce.segregation_status_id IS NOT NULL
 GROUP BY ss.id
 ";
 
