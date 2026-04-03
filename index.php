@@ -22,7 +22,42 @@ date_default_timezone_set('Asia/Kolkata');
 ================================ */
 $users = [
     'bicholim' => ['password' => 'bicho123', 'panchayat_id' => 225],
-    'sankhali' => ['password' => 'sank123', 'panchayat_id' => 227]
+    'sankhali' => ['password' => 'sank123', 'panchayat_id' => 227],
+
+    'bhironda' => ['password' => 'bhironda123', 'panchayat_id' => 191],
+    'keri' => ['password' => 'keri123', 'panchayat_id' => 199],
+    'morlem' => ['password' => 'morlem123', 'panchayat_id' => 190],
+    'pissurlem' => ['password' => 'pissurlem123', 'panchayat_id' => 195],
+    'honda' => ['password' => 'honda123', 'panchayat_id' => 198],
+    'poriem' => ['password' => 'poriem123', 'panchayat_id' => 200],
+    'nagargaon' => ['password' => 'nagargaon123', 'panchayat_id' => 189],
+    'dongurli' => ['password' => 'dongurli123', 'panchayat_id' => 193],
+    'mauxi' => ['password' => 'mauxi123', 'panchayat_id' => 188],
+    'guleli_sattari' => ['password' => 'guleli123', 'panchayat_id' => 187],
+    'savordem' => ['password' => 'savordem123', 'panchayat_id' => 181],
+    'cotorem' => ['password' => 'cotorem123', 'panchayat_id' => 192],
+    'valpoi_council' => ['password' => 'valpoi123', 'panchayat_id' => 224],
+
+    'surla' => ['password' => 'surla123', 'panchayat_id' => 219],
+    'pale' => ['password' => 'pale123', 'panchayat_id' => 205],
+    'velguem' => ['password' => 'velguem123', 'panchayat_id' => 215],
+    'navelim' => ['password' => 'navelim123', 'panchayat_id' => 206],
+    'harvalem' => ['password' => 'harvalem123', 'panchayat_id' => 201],
+    'cudnem' => ['password' => 'cudnem123', 'panchayat_id' => 220],
+    'amona' => ['password' => 'amona123', 'panchayat_id' => 214],
+    'sarvan' => ['password' => 'sarvan123', 'panchayat_id' => 221],
+    'piligao' => ['password' => 'piligao123', 'panchayat_id' => 204],
+    'naroa' => ['password' => 'naroa123', 'panchayat_id' => 203],
+    'sirigao' => ['password' => 'sirigao123', 'panchayat_id' => 194],
+    'mayem' => ['password' => 'mayem123', 'panchayat_id' => 216],
+    'ona_maulinguem' => ['password' => 'ona123', 'panchayat_id' => 213],
+    'mulgaon' => ['password' => 'mulgaon123', 'panchayat_id' => 197],
+    'salem' => ['password' => 'salem123', 'panchayat_id' => 196],
+    'mencurem' => ['password' => 'mencurem123', 'panchayat_id' => 180],
+    'latambarcem' => ['password' => 'latambarcem123', 'panchayat_id' => 222],
+    'adwalpal' => ['password' => 'adwalpal123', 'panchayat_id' => 177],
+    'bicholim_council' => ['password' => 'bicholim123', 'panchayat_id' => 225],
+    'sanquelim_council' => ['password' => 'sanquelim123', 'panchayat_id' => 227]
 ];
 
 /* ================================
