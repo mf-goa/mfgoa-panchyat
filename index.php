@@ -472,16 +472,16 @@ $output = fopen("php://output", "w");
 // Header row
 fputcsv($output, [
     'SR NO','Date','Time','User Name','Panchayat','Wado',
-    'House No','Head of Family','QRCode','Old QR Code',
+    'House No','Head of Family','QRCode',
     'Type','Subtype','Status',
     'Segregation Status',
-    'Latitude','Longitude',
+    'Latitude','Longitude','New QR Code',
     'Action','Action By','Action Date',
     'Household Latitude','Household Longitude','Household Location'
 ]);
 
 // HOUSEHOLD-BASED DETAILED EXPORT: all households, only latest valid collection per household in date range
-// SQL with updated segregation_status formatting and removed new_qr_code
+// SQL: QR logic and new QR code logic
 $sql = "
 SELECT 
 DATE_FORMAT(msce.date, '%d-%m-%Y') as date,
@@ -491,8 +491,11 @@ mp.name as panchayat,
 w.name as wado,
 mh.hno as house_no,
 mh.name as head_of_family,
-mh.qr_code,
-mh.old_qr_code,
+CASE 
+    WHEN mh.action IN ('LINK_EXISTING_HOUSEHOLD','LINK_HOUSEHOLD') 
+    THEN mh.old_qr_code 
+    ELSE mh.qr_code 
+END as qr_code,
 COALESCE(t.name,'') as type,
 COALESCE(st.name,'') as subtype,
 CASE 
@@ -508,6 +511,11 @@ CASE
 END as segregation_status,
 msce.latitude,
 msce.longitude,
+CASE 
+    WHEN mh.action IN ('LINK_EXISTING_HOUSEHOLD','LINK_HOUSEHOLD') 
+    THEN mh.qr_code 
+    ELSE '' 
+END as new_qr_code,
 mh.action,
 CONCAT(ua.fname, ' ', ua.lname) as action_by,
 mh.action_ts as action_date,
@@ -577,13 +585,13 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['house_no']),
         safe_csv($row['head_of_family']),
         safe_csv($row['qr_code']),
-        safe_csv($row['old_qr_code']),
         safe_csv($row['type']),
         safe_csv($row['subtype']),
         safe_csv($row['status']),
         safe_csv($row['segregation_status']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
+        safe_csv($row['new_qr_code']),
         safe_csv($row['action']),
         safe_csv($row['action_by']),
         safe_csv($row['action_date']),

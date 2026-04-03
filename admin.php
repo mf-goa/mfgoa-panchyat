@@ -520,7 +520,6 @@ fputcsv($output, [
     'House No.',
     'Head of family',
     'QRCode',
-    'Old QR Code',
     'Type',
     'Subtype',
     'Status',
@@ -528,6 +527,7 @@ fputcsv($output, [
     'Remark',
     'Latitude',
     'Longitude',
+    'New QR Code',
     'Action',
     'Action By',
     'Action Date',
@@ -546,8 +546,11 @@ mp.name as panchayat,
 w.name as wado,
 mh.hno,
 mh.name as head_name,
-mh.qr_code,
-mh.old_qr_code,
+CASE 
+    WHEN mh.action IN ('LINK_EXISTING_HOUSEHOLD','LINK_HOUSEHOLD') 
+    THEN mh.old_qr_code 
+    ELSE mh.qr_code 
+END as qr_code,
 COALESCE(t.name,'Not Defined') as type,
 COALESCE(st.name,'Not Defined') as subtype,
 CASE 
@@ -564,6 +567,11 @@ END as segregation_status,
 msce.remark,
 msce.latitude,
 msce.longitude,
+CASE 
+    WHEN mh.action IN ('LINK_EXISTING_HOUSEHOLD','LINK_HOUSEHOLD') 
+    THEN mh.qr_code 
+    ELSE '' 
+END as new_qr_code,
 mh.action,
 CONCAT(ua.fname,' ',ua.lname) as action_by_name,
 mh.action_ts,
@@ -645,7 +653,6 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['hno']),
         safe_csv($row['head_name']),
         safe_csv($row['qr_code']),
-        safe_csv($row['old_qr_code']),
         safe_csv($row['type']),
         safe_csv($row['subtype']),
         safe_csv($row['status']),
@@ -653,6 +660,7 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['remark']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
+        safe_csv($row['new_qr_code']),
         safe_csv($row['action']),
         safe_csv($row['action_by_name']),
         safe_csv($row['action_ts']),
