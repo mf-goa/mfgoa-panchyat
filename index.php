@@ -476,12 +476,12 @@ fputcsv($output, [
     'Type','Subtype','Status',
     'Segregation Status',
     'Latitude','Longitude',
-    'New QR Code',
     'Action','Action By','Action Date',
     'Household Latitude','Household Longitude','Household Location'
 ]);
 
 // HOUSEHOLD-BASED DETAILED EXPORT: all households, only latest valid collection per household in date range
+// SQL with updated segregation_status formatting and removed new_qr_code
 $sql = "
 SELECT 
 DATE_FORMAT(msce.date, '%d-%m-%Y') as date,
@@ -500,10 +500,14 @@ WHEN msce.home_status_id = 1 THEN 'Open'
 WHEN msce.home_status_id = 2 THEN 'Closed'
 ELSE ''
 END as status,
-CONCAT(COALESCE(ss.name,''),' / ',COALESCE(sss.name,'')) as segregation_status,
+CASE
+    WHEN ss.name IS NULL AND sss.name IS NULL THEN ''
+    WHEN ss.name IS NOT NULL AND sss.name IS NOT NULL THEN CONCAT(ss.name,' / ',sss.name)
+    WHEN ss.name IS NOT NULL THEN ss.name
+    ELSE sss.name
+END as segregation_status,
 msce.latitude,
 msce.longitude,
-mh.qr_code as new_qr_code,
 mh.action,
 CONCAT(ua.fname, ' ', ua.lname) as action_by,
 mh.action_ts as action_date,
@@ -580,7 +584,6 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['segregation_status']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
-        safe_csv($row['new_qr_code']),
         safe_csv($row['action']),
         safe_csv($row['action_by']),
         safe_csv($row['action_date']),

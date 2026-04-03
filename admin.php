@@ -528,7 +528,6 @@ fputcsv($output, [
     'Remark',
     'Latitude',
     'Longitude',
-    'New QR Code',
     'Action',
     'Action By',
     'Action Date',
@@ -556,11 +555,15 @@ WHEN msce.home_status_id = 1 THEN 'Open'
 WHEN msce.home_status_id = 2 THEN 'Closed'
 ELSE ''
 END as status,
-CONCAT(COALESCE(ss.name,''),' / ',COALESCE(sss.name,'')) as segregation_status,
+CASE
+    WHEN ss.name IS NULL AND sss.name IS NULL THEN ''
+    WHEN ss.name IS NOT NULL AND sss.name IS NOT NULL THEN CONCAT(ss.name,' / ',sss.name)
+    WHEN ss.name IS NOT NULL THEN ss.name
+    ELSE sss.name
+END as segregation_status,
 msce.remark,
 msce.latitude,
 msce.longitude,
-mh.qr_code as new_qr,
 mh.action,
 CONCAT(ua.fname,' ',ua.lname) as action_by_name,
 mh.action_ts,
@@ -650,7 +653,6 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['remark']),
         safe_csv($row['latitude']),
         safe_csv($row['longitude']),
-        safe_csv($row['new_qr']),
         safe_csv($row['action']),
         safe_csv($row['action_by_name']),
         safe_csv($row['action_ts']),
