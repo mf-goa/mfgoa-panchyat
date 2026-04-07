@@ -384,7 +384,8 @@ SELECT
     COUNT(DISTINCT mh.id) as total,
     COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
     COUNT(DISTINCT CASE 
-        WHEN ss.name != 'Segregate' OR ss.name IS NULL 
+        WHEN msce.household_id IS NOT NULL 
+        AND (ss.name != 'Segregate' OR ss.name IS NULL)
         THEN mh.id 
     END) as not_segregated
 FROM mf_wado w
