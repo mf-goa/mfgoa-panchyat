@@ -378,12 +378,15 @@ $stmt->close();
 /* WADO SEGREGATION */
 // WADO SEG FIX
 // WADO SEG FIX
-$sql_wado_seg = "
+ $sql_wado_seg = "
 SELECT 
     w.name,
-    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL THEN msce.household_id END) as total,
-    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL AND ss.name = 'Segregate' THEN msce.household_id END) as segregated,
-    COUNT(DISTINCT CASE WHEN msce.household_id IS NOT NULL AND ss.name != 'Segregate' THEN msce.household_id END) as not_segregated
+    COUNT(DISTINCT mh.id) as total,
+    COUNT(DISTINCT CASE WHEN ss.name = 'Segregate' THEN mh.id END) as segregated,
+    COUNT(DISTINCT CASE 
+        WHEN ss.name != 'Segregate' OR ss.name IS NULL 
+        THEN mh.id 
+    END) as not_segregated
 FROM mf_wado w
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 LEFT JOIN mf_household mh ON mh.wado_id = w.id AND mh.status = 1
