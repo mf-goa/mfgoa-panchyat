@@ -489,7 +489,11 @@ $sql = "
 SELECT 
 DATE_FORMAT(dates.report_date, '%d-%m-%Y') as date,
 '' as time,
-CONCAT(u.fname, ' ', u.lname) as user_name,
+CASE 
+    WHEN msce.household_id IS NOT NULL 
+    THEN CONCAT(u.fname, ' ', u.lname)
+    ELSE ''
+END as user_name,
 mp.name as panchayat,
 w.name as wado,
 mh.hno as house_no,
