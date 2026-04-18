@@ -573,9 +573,24 @@ if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
 }
 if ($wado) {
-    $stmt->bind_param("isssii", $panchayat_id, $from_date, $to_date, $from_date, $to_date, $wado);
+    $stmt->bind_param("issssii", 
+        $panchayat_id,  // dates subquery
+        $from_date,
+        $to_date,
+        $from_date,
+        $to_date,
+        $panchayat_id,  // main WHERE mp.id = ?
+        $wado
+    );
 } else {
-    $stmt->bind_param("isssi", $panchayat_id, $from_date, $to_date, $from_date, $to_date);
+    $stmt->bind_param("issssi", 
+        $panchayat_id,
+        $from_date,
+        $to_date,
+        $from_date,
+        $to_date,
+        $panchayat_id
+    );
 }
 if (!$stmt->execute()) {
     die("SQL Execute Failed: " . $stmt->error);
