@@ -488,9 +488,13 @@ fputcsv($output, [
 $sql = "
 SELECT 
 DATE_FORMAT(dates.report_date, '%d-%m-%Y') as date,
-'' as time,
 CASE 
-    WHEN msce.household_id IS NOT NULL 
+    WHEN msce.collection_date IS NOT NULL 
+    THEN DATE_FORMAT(msce.collection_date, '%H:%i:%s')
+    ELSE ''
+END as time,
+CASE 
+    WHEN msce.segregation_status_id IS NOT NULL 
     THEN CONCAT(u.fname, ' ', u.lname)
     ELSE ''
 END as user_name,
