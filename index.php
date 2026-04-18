@@ -540,17 +540,17 @@ LEFT JOIN (
     SELECT msce1.*
     FROM mf_submit_collection_entry msce1
     INNER JOIN (
-        SELECT household_id, DATE(date) as d, MAX(date) as max_date
+        SELECT household_id, DATE(collection_date) as d, MAX(collection_date) as max_date
         FROM mf_submit_collection_entry
-        WHERE DATE(date) BETWEEN ? AND ?
-        GROUP BY household_id, DATE(date)
+        WHERE DATE(collection_date) BETWEEN ? AND ?
+        GROUP BY household_id, DATE(collection_date)
     ) latest
     ON msce1.household_id = latest.household_id
-    AND DATE(msce1.date) = latest.d
-    AND msce1.date = latest.max_date
+    AND DATE(msce1.collection_date) = latest.d
+    AND msce1.collection_date = latest.max_date
 ) msce 
 ON msce.household_id = mh.id
-AND DATE(msce.date) = dates.report_date
+AND DATE(msce.collection_date) = dates.report_date
 
 LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
@@ -570,9 +570,9 @@ if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
 }
 if ($wado) {
-    $stmt->bind_param("ssssii", $from_date, $from_date, $to_date, $from_date, $to_date, $panchayat_id, $wado);
+    $stmt->bind_param("ssssii", $from_date, $to_date, $from_date, $to_date, $panchayat_id, $wado);
 } else {
-    $stmt->bind_param("ssssi", $from_date, $from_date, $to_date, $from_date, $to_date, $panchayat_id);
+    $stmt->bind_param("ssssi", $from_date, $to_date, $from_date, $to_date, $panchayat_id);
 }
 if (!$stmt->execute()) {
     die("SQL Execute Failed: " . $stmt->error);
