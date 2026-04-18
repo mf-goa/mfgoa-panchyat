@@ -540,11 +540,11 @@ fputcsv($output, [
     'Household Location'
 ]);
 
-// NEW: Household-based logic, only latest valid collection per household in range (or blank if none)
+// NEW: Household-based logic, only latest valid collection per household × date in range (or blank if none)
 $sql = "
 SELECT 
-DATE_FORMAT(msce.date, '%Y-%m-%d') as collection_date,
-TIME(msce.date) as time,
+DATE_FORMAT(dates.report_date, '%Y-%m-%d') as collection_date,
+'' as time,
 CONCAT(u.fname,' ',u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
@@ -588,20 +588,45 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 
+JOIN (
+    SELECT DATE(?) + INTERVAL seq DAY AS report_date
+    FROM (
+        SELECT 0 as seq UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+        UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9
+        UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14
+        UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19
+        UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24
+        UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27 UNION ALL SELECT 28 UNION ALL SELECT 29
+        UNION ALL SELECT 30 UNION ALL SELECT 31 UNION ALL SELECT 32 UNION ALL SELECT 33 UNION ALL SELECT 34
+        UNION ALL SELECT 35 UNION ALL SELECT 36 UNION ALL SELECT 37 UNION ALL SELECT 38 UNION ALL SELECT 39
+        UNION ALL SELECT 40 UNION ALL SELECT 41 UNION ALL SELECT 42 UNION ALL SELECT 43 UNION ALL SELECT 44
+        UNION ALL SELECT 45 UNION ALL SELECT 46 UNION ALL SELECT 47 UNION ALL SELECT 48 UNION ALL SELECT 49
+        UNION ALL SELECT 50 UNION ALL SELECT 51 UNION ALL SELECT 52 UNION ALL SELECT 53 UNION ALL SELECT 54
+        UNION ALL SELECT 55 UNION ALL SELECT 56 UNION ALL SELECT 57 UNION ALL SELECT 58 UNION ALL SELECT 59
+        UNION ALL SELECT 60 UNION ALL SELECT 61 UNION ALL SELECT 62 UNION ALL SELECT 63 UNION ALL SELECT 64
+        UNION ALL SELECT 65 UNION ALL SELECT 66 UNION ALL SELECT 67 UNION ALL SELECT 68 UNION ALL SELECT 69
+        UNION ALL SELECT 70 UNION ALL SELECT 71 UNION ALL SELECT 72 UNION ALL SELECT 73 UNION ALL SELECT 74
+        UNION ALL SELECT 75 UNION ALL SELECT 76 UNION ALL SELECT 77 UNION ALL SELECT 78 UNION ALL SELECT 79
+        UNION ALL SELECT 80 UNION ALL SELECT 81 UNION ALL SELECT 82 UNION ALL SELECT 83 UNION ALL SELECT 84
+        UNION ALL SELECT 85 UNION ALL SELECT 86 UNION ALL SELECT 87 UNION ALL SELECT 88 UNION ALL SELECT 89
+    ) seq_table
+) dates ON dates.report_date BETWEEN ? AND ?
+
 LEFT JOIN (
     SELECT msce1.*
     FROM mf_submit_collection_entry msce1
     INNER JOIN (
-        SELECT household_id, MAX(date) as max_date
+        SELECT household_id, DATE(date) as d, MAX(date) as max_date
         FROM mf_submit_collection_entry
         WHERE DATE(date) BETWEEN ? AND ?
-        AND home_status_id IN (1,2)
-        AND segregation_status_id IS NOT NULL
-        GROUP BY household_id
+        GROUP BY household_id, DATE(date)
     ) latest
     ON msce1.household_id = latest.household_id
+    AND DATE(msce1.date) = latest.d
     AND msce1.date = latest.max_date
-) msce ON msce.household_id = mh.id
+) msce 
+ON msce.household_id = mh.id
+AND DATE(msce.date) = dates.report_date
 
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
@@ -624,20 +649,26 @@ if ($panchayat) {
 $sql .= " ORDER BY collection_date DESC";
 
 // Prepare binding
-$export_params = [$from_date, $to_date];
-$export_types = "ss";
+$export_params = [$from_date, $from_date, $to_date, $from_date, $to_date];
+$export_types = "sssss";
+
 if ($wado) {
     $export_types .= "i";
     $export_params[] = $wado;
+    $sql .= " AND w.id = ?";
 }
 if ($taluka) {
     $export_types .= "i";
     $export_params[] = $taluka;
+    $sql .= " AND mt.id = ?";
 }
 if ($panchayat) {
     $export_types .= "i";
     $export_params[] = $panchayat;
+    $sql .= " AND mp.id = ?";
 }
+
+$sql .= " ORDER BY dates.report_date DESC, mh.id";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($export_types, ...$export_params);
