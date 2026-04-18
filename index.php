@@ -531,9 +531,12 @@ JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 
 JOIN (
-    SELECT DISTINCT DATE(collection_date) as report_date
-    FROM mf_submit_collection_entry
-    WHERE DATE(collection_date) BETWEEN ? AND ?
+    SELECT DISTINCT DATE(msce.collection_date) as report_date
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh2 ON mh2.id = msce.household_id
+    JOIN mf_wado w2 ON w2.id = mh2.wado_id
+    WHERE w2.panchayat_id = ?
+    AND DATE(msce.collection_date) BETWEEN ? AND ?
 ) dates ON 1=1
 
 LEFT JOIN (
@@ -570,9 +573,9 @@ if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
 }
 if ($wado) {
-    $stmt->bind_param("ssssii", $from_date, $to_date, $from_date, $to_date, $panchayat_id, $wado);
+    $stmt->bind_param("isssii", $panchayat_id, $from_date, $to_date, $from_date, $to_date, $wado);
 } else {
-    $stmt->bind_param("ssssi", $from_date, $to_date, $from_date, $to_date, $panchayat_id);
+    $stmt->bind_param("isssi", $panchayat_id, $from_date, $to_date, $from_date, $to_date);
 }
 if (!$stmt->execute()) {
     die("SQL Execute Failed: " . $stmt->error);
