@@ -541,11 +541,20 @@ fputcsv($output, [
 ]);
 
 // NEW: Household-based logic, only latest valid collection per household × date in range (or blank if none)
+// DETAILED EXPORT SQL (UPDATED)
 $sql = "
 SELECT 
 DATE_FORMAT(dates.report_date, '%Y-%m-%d') as collection_date,
-'' as time,
-CONCAT(u.fname,' ',u.lname) as user_name,
+CASE 
+    WHEN msce.collection_date IS NOT NULL 
+    THEN DATE_FORMAT(msce.collection_date, '%H:%i:%s')
+    ELSE ''
+END as time,
+CASE 
+    WHEN msce.segregation_status_id IS NOT NULL 
+    THEN CONCAT(u.fname,' ',u.lname)
+    ELSE ''
+END as user_name,
 mp.name as panchayat,
 w.name as wado,
 mh.hno,
@@ -589,26 +598,33 @@ JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
 
 JOIN (
-    SELECT DISTINCT DATE(collection_date) as report_date
-    FROM mf_submit_collection_entry
-    WHERE DATE(collection_date) BETWEEN ? AND ?
+    SELECT DISTINCT DATE(msce.collection_date) as report_date
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh2 ON mh2.id = msce.household_id
+    JOIN mf_wado w2 ON w2.id = mh2.wado_id
+    WHERE w2.panchayat_id = ?
+    AND DATE(msce.collection_date) BETWEEN ? AND ?
+
+    UNION
+
+    SELECT ?
 ) dates ON 1=1
 
 LEFT JOIN (
     SELECT msce1.*
     FROM mf_submit_collection_entry msce1
     INNER JOIN (
-        SELECT household_id, DATE(date) as d, MAX(date) as max_date
+        SELECT household_id, DATE(collection_date) as d, MAX(collection_date) as max_date
         FROM mf_submit_collection_entry
-        WHERE DATE(date) BETWEEN ? AND ?
-        GROUP BY household_id, DATE(date)
+        WHERE DATE(collection_date) BETWEEN ? AND ?
+        GROUP BY household_id, DATE(collection_date)
     ) latest
     ON msce1.household_id = latest.household_id
-    AND DATE(msce1.date) = latest.d
-    AND msce1.date = latest.max_date
+    AND DATE(msce1.collection_date) = latest.d
+    AND msce1.collection_date = latest.max_date
 ) msce 
 ON msce.household_id = mh.id
-AND DATE(msce.date) = dates.report_date
+AND DATE(msce.collection_date) = dates.report_date
 
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
 LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
@@ -619,20 +635,15 @@ LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
 WHERE mh.status = 1
 ";
-if ($wado) {
-    $sql .= " AND w.id = ?";
-}
-if ($taluka) {
-    $sql .= " AND mt.id = ?";
-}
-if ($panchayat) {
-    $sql .= " AND mp.id = ?";
-}
-$sql .= " ORDER BY collection_date DESC";
-
-// Prepare binding
-$export_params = [$from_date, $from_date, $to_date, $from_date, $to_date];
-$export_types = "sssss";
+$export_params = [
+    $panchayat,   // for dates filter
+    $from_date,
+    $to_date,
+    $from_date,
+    $to_date,
+    $from_date,   // fallback date
+];
+$export_types = "isssss";
 
 if ($wado) {
     $export_types .= "i";
