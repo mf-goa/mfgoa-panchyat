@@ -636,12 +636,12 @@ LEFT JOIN mf_user ua ON ua.id = mh.action_by
 WHERE mh.status = 1
 ";
 $export_params = [
-    $panchayat,   // for dates filter
+    $panchayat,   // dates subquery filter
     $from_date,
     $to_date,
+    $from_date,   // fallback date (UNION)
     $from_date,
-    $to_date,
-    $from_date,   // fallback date
+    $to_date      // latest subquery
 ];
 $export_types = "isssss";
 
