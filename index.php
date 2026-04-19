@@ -545,6 +545,10 @@ JOIN (
     JOIN mf_wado w2 ON w2.id = mh2.wado_id
     WHERE w2.panchayat_id = ?
     AND DATE(msce.collection_date) BETWEEN ? AND ?
+
+    UNION
+
+    SELECT ?
 ) dates ON 1=1
 
 LEFT JOIN (
@@ -581,22 +585,24 @@ if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
 }
 if ($wado) {
-    $stmt->bind_param("issssii", 
-        $panchayat_id,  // dates subquery
+    $stmt->bind_param("isssssii", 
+        $panchayat_id,   // dates filter
         $from_date,
         $to_date,
         $from_date,
         $to_date,
-        $panchayat_id,  // main WHERE mp.id = ?
+        $from_date,      // fallback date
+        $panchayat_id,
         $wado
     );
 } else {
-    $stmt->bind_param("issssi", 
+    $stmt->bind_param("isssssi", 
         $panchayat_id,
         $from_date,
         $to_date,
         $from_date,
         $to_date,
+        $from_date,      // fallback date
         $panchayat_id
     );
 }
