@@ -544,7 +544,7 @@ fputcsv($output, [
 $sql = "
 SELECT 
 DATE_FORMAT(msce.collection_date, '%Y-%m-%d') as collection_date,
-TIME(msce.collection_date) as time,
+TIME(msce.date) as time,
 CONCAT(u.fname,' ',u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
