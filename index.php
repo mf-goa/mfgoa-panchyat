@@ -637,19 +637,14 @@ WHERE mh.status = 1
 AND mp.id = ?
 ";
 // Param binding for UNSERVICED block
-$un_params = [$from_date, $to_date];
-$un_types = "ss";
+$un_params = [$from_date, $to_date, $panchayat_id];
+$un_types = "ssi";
 
 if ($wado) {
     $sql_unserviced .= " AND w.id = ?";
     $un_types .= "i";
     $un_params[] = $wado;
 }
-
-// Panchayat filter (always present)
-$sql_unserviced .= " AND mp.id = ?";
-$un_types .= "i";
-$un_params[] = $panchayat_id;
 
 $stmt2 = $conn->prepare($sql_unserviced);
 $stmt2->bind_param($un_types, ...$un_params);
