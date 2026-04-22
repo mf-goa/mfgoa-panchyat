@@ -604,7 +604,7 @@ fputcsv($output, []);
 $sr = 1;
 
 // Build UNSERVICED SQL to match admin logic exactly
-$sql_unserviced = "
+ $sql_unserviced = "
 SELECT 
 mp.name as panchayat,
 w.name as wado,
@@ -638,10 +638,11 @@ LEFT JOIN (
     AND mp2.id = ?
 ) serviced ON serviced.household_id = mh.id
 WHERE mh.status = 1
+AND mp.id = ?
 ";
 // Param binding for UNSERVICED block
-$un_params = [$from_date, $to_date, $panchayat_id];
-$un_types = "ssi";
+$un_params = [$from_date, $to_date, $panchayat_id, $panchayat_id];
+$un_types = "ssii";
 
 if ($wado) {
     $sql_unserviced .= " AND w.id = ?";
