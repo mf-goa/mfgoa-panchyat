@@ -628,34 +628,30 @@ LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
 LEFT JOIN (
-    SELECT DISTINCT msce.household_id
-    FROM mf_submit_collection_entry msce
-    JOIN mf_household mh2 ON mh2.id = msce.household_id
-    JOIN mf_wado w2 ON w2.id = mh2.wado_id
-    WHERE DATE(msce.collection_date) BETWEEN ? AND ?
-    AND msce.segregation_status_id IS NOT NULL
-    AND w2.panchayat_id = ?
+    SELECT DISTINCT household_id
+    FROM mf_submit_collection_entry
+    WHERE DATE(collection_date) BETWEEN ? AND ?
+    AND segregation_status_id IS NOT NULL
+) serviced ON serviced.household_id = mh.id
+WHERE mh.status = 1
 ";
-if ($wado) {
-    $sql_unserviced .= " AND w2.id = ?";
-}
-$sql_unserviced .= "
- ) serviced ON serviced.household_id = mh.id
-WHERE mh.status = 1 AND mp.id = ?
-";
+// Param binding for UNSERVICED block
+$un_params = [$from_date, $to_date];
+$un_types = "ss";
+
 if ($wado) {
     $sql_unserviced .= " AND w.id = ?";
+    $un_types .= "i";
+    $un_params[] = $wado;
+}
+if ($panchayat_id) {
+    $sql_unserviced .= " AND mp.id = ?";
+    $un_types .= "i";
+    $un_params[] = $panchayat_id;
 }
 
 $stmt2 = $conn->prepare($sql_unserviced);
-
-// Param binding order: from_date, to_date, panchayat_id (subquery), [wado (subquery)], panchayat_id (main), [wado (main)]
-if ($wado) {
-    $stmt2->bind_param("ssiii", $from_date, $to_date, $panchayat_id, $panchayat_id, $wado);
-} else {
-    $stmt2->bind_param("ssii", $from_date, $to_date, $panchayat_id, $panchayat_id);
-}
-
+$stmt2->bind_param($un_types, ...$un_params);
 $stmt2->execute();
 $res2 = $stmt2->get_result();
 
