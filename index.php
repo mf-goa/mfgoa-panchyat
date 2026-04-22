@@ -604,6 +604,7 @@ fputcsv($output, []);
 $sr = 1;
 
 // Build UNSERVICED SQL to match admin logic exactly
+// UNSERVICED HOUSEHOLDS BLOCK (HARD ENFORCE PANCHAYAT FILTER)
 $sql_unserviced = "
 SELECT 
 mp.name as panchayat,
@@ -634,16 +635,24 @@ LEFT JOIN (
     AND segregation_status_id IS NOT NULL
 ) serviced ON serviced.household_id = mh.id
 WHERE mh.status = 1
-AND mp.id = ?
+AND mp.id = " . intval($panchayat_id) . "
 ";
 // Param binding for UNSERVICED block
-$un_params = [$from_date, $to_date, $panchayat_id];
-$un_types = "ssi";
+$un_params = [$from_date, $to_date];
+$un_types = "ss";
 
 if ($wado) {
     $sql_unserviced .= " AND w.id = ?";
     $un_types .= "i";
     $un_params[] = $wado;
+}
+
+if (isset($_GET['debug']) && $_GET['debug'] == 1) {
+    echo "<pre>";
+    echo "Panchayat ID: " . $panchayat_id . "\n";
+    echo "SQL: " . $sql_unserviced . "\n";
+    print_r($un_params);
+    echo "</pre>";
 }
 
 $stmt2 = $conn->prepare($sql_unserviced);
