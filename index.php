@@ -484,21 +484,12 @@ fputcsv($output, [
     'Household Latitude','Household Longitude','Household Location'
 ]);
 
-// DETAILED EXPORT: household × date logic
-// STEP 1: FIX TIME COLUMN
+// DETAILED EXPORT: RAW COLLECTION DATA ONLY (NO household × date expansion)
 $sql = "
 SELECT 
-DATE_FORMAT(dates.report_date, '%d-%m-%Y') as date,
-CASE 
-    WHEN msce.collection_date IS NOT NULL 
-    THEN TIME(msce.collection_date)
-    ELSE ''
-END as time,
-CASE 
-    WHEN msce.segregation_status_id IS NOT NULL 
-    THEN CONCAT(u.fname, ' ', u.lname)
-    ELSE ''
-END as user_name,
+DATE_FORMAT(msce.collection_date, '%d-%m-%Y') as date,
+TIME(msce.collection_date) as time,
+CONCAT(u.fname, ' ', u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
 mh.hno as house_no,
@@ -511,9 +502,9 @@ END as qr_code,
 COALESCE(t.name,'') as type,
 COALESCE(st.name,'') as subtype,
 CASE 
-WHEN msce.home_status_id = 1 THEN 'Open'
-WHEN msce.home_status_id = 2 THEN 'Closed'
-ELSE ''
+    WHEN msce.home_status_id = 1 THEN 'Open'
+    WHEN msce.home_status_id = 2 THEN 'Closed'
+    ELSE ''
 END as status,
 CASE
     WHEN ss.name IS NULL AND sss.name IS NULL THEN ''
@@ -535,39 +526,10 @@ mh.latitude as household_latitude,
 mh.longitude as household_longitude,
 mh.location as household_location
 
-FROM mf_household mh
+FROM mf_submit_collection_entry msce
+JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-
-JOIN (
-    SELECT DISTINCT DATE(msce.collection_date) as report_date
-    FROM mf_submit_collection_entry msce
-    JOIN mf_household mh2 ON mh2.id = msce.household_id
-    JOIN mf_wado w2 ON w2.id = mh2.wado_id
-    WHERE w2.panchayat_id = ?
-    AND DATE(msce.collection_date) BETWEEN ? AND ?
-
-    UNION
-
-    SELECT ?
-) dates ON 1=1
-
-LEFT JOIN (
-    SELECT msce1.*
-    FROM mf_submit_collection_entry msce1
-    INNER JOIN (
-        SELECT household_id, DATE(collection_date) as d, MAX(collection_date) as max_date
-        FROM mf_submit_collection_entry
-        WHERE DATE(collection_date) BETWEEN ? AND ?
-        GROUP BY household_id, DATE(collection_date)
-    ) latest
-    ON msce1.household_id = latest.household_id
-    AND DATE(msce1.collection_date) = latest.d
-    AND msce1.collection_date = latest.max_date
-) msce 
-ON msce.household_id = mh.id
-AND DATE(msce.collection_date) = dates.report_date
-
 LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
@@ -575,8 +537,11 @@ LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
-WHERE mh.status = 1 AND mp.id = ?
+WHERE DATE(msce.collection_date) BETWEEN ? AND ?
+AND mp.id = ?
+AND msce.segregation_status_id IS NOT NULL
 ";
+
 if ($wado) {
     $sql .= " AND w.id = ?";
 }
@@ -585,27 +550,11 @@ $stmt = $conn->prepare($sql);
 if (!$stmt) {
     die("SQL Prepare Failed: " . $conn->error);
 }
+
 if ($wado) {
-    $stmt->bind_param("isssssii", 
-        $panchayat_id,   // dates filter
-        $from_date,
-        $to_date,
-        $from_date,
-        $to_date,
-        $from_date,      // fallback date
-        $panchayat_id,
-        $wado
-    );
+    $stmt->bind_param("ssii", $from_date, $to_date, $panchayat_id, $wado);
 } else {
-    $stmt->bind_param("isssssi", 
-        $panchayat_id,
-        $from_date,
-        $to_date,
-        $from_date,
-        $to_date,
-        $from_date,      // fallback date
-        $panchayat_id
-    );
+    $stmt->bind_param("ssi", $from_date, $to_date, $panchayat_id);
 }
 if (!$stmt->execute()) {
     die("SQL Execute Failed: " . $stmt->error);
@@ -643,93 +592,6 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['household_location'])
     ]);
 }
-
-// STEP 2: GAP BEFORE UNSERVICED
-fputcsv($output, []);
-fputcsv($output, ['UNSERVICED HOUSEHOLDS']);
-fputcsv($output, []);
-
-// RESET SR
-$sr = 1;
-
-// UNSERVICED QUERY
-$sql_unserviced = "
-SELECT 
-mp.name as panchayat,
-w.name as wado,
-mh.hno as house_no,
-mh.name as head_of_family,
-mh.qr_code,
-COALESCE(t.name,'') as type,
-COALESCE(st.name,'') as subtype,
-mh.action,
-CONCAT(ua.fname,' ',ua.lname) as action_by,
-mh.action_ts as action_date,
-mh.latitude as household_latitude,
-mh.longitude as household_longitude,
-mh.location as household_location
-
-FROM mf_household mh
-JOIN mf_wado w ON w.id = mh.wado_id
-JOIN mf_panchayat mp ON mp.id = w.panchayat_id
-LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
-LEFT JOIN mf_household_type t ON t.id = st.type_id
-LEFT JOIN mf_user ua ON ua.id = mh.action_by
-
-LEFT JOIN (
-    SELECT DISTINCT household_id
-    FROM mf_submit_collection_entry
-    WHERE DATE(collection_date) BETWEEN ? AND ?
-    AND segregation_status_id IS NOT NULL
-) serviced ON serviced.household_id = mh.id
-
-WHERE mh.status = 1 AND mp.id = ?
-";
-
-if ($wado) {
-    $sql_unserviced .= " AND w.id = ?";
-}
-
-$stmt2 = $conn->prepare($sql_unserviced);
-
-if ($wado) {
-    $stmt2->bind_param("ssii", $from_date, $to_date, $panchayat_id, $wado);
-} else {
-    $stmt2->bind_param("ssi", $from_date, $to_date, $panchayat_id);
-}
-
-$stmt2->execute();
-$res2 = $stmt2->get_result();
-
-// LOOP UNSERVICED
-while ($row = $res2->fetch_assoc()) {
-    fputcsv($output, [
-        $sr++,
-        '', // Date
-        '', // Time
-        '', // User
-        safe_csv($row['panchayat']),
-        safe_csv($row['wado']),
-        safe_csv($row['house_no']),
-        safe_csv($row['head_of_family']),
-        safe_csv($row['qr_code']),
-        safe_csv($row['type']),
-        safe_csv($row['subtype']),
-        '', // Status
-        '', // Segregation
-        '', // Latitude
-        '', // Longitude
-        '', // New QR
-        safe_csv($row['action']),
-        safe_csv($row['action_by']),
-        safe_csv($row['action_date']),
-        safe_csv($row['household_latitude']),
-        safe_csv($row['household_longitude']),
-        safe_csv($row['household_location'])
-    ]);
-}
-
-$stmt2->close();
 
 fclose($output);
 exit;
