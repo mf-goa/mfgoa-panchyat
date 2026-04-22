@@ -540,21 +540,12 @@ fputcsv($output, [
     'Household Location'
 ]);
 
-// NEW: Household-based logic, only latest valid collection per household × date in range (or blank if none)
 // DETAILED EXPORT SQL (UPDATED)
 $sql = "
 SELECT 
-DATE_FORMAT(dates.report_date, '%Y-%m-%d') as collection_date,
-CASE 
-    WHEN msce.collection_date IS NOT NULL 
-    THEN TIME(msce.collection_date)
-    ELSE ''
-END as time,
-CASE 
-    WHEN msce.segregation_status_id IS NOT NULL 
-    THEN CONCAT(u.fname,' ',u.lname)
-    ELSE ''
-END as user_name,
+DATE_FORMAT(msce.collection_date, '%Y-%m-%d') as collection_date,
+TIME(msce.collection_date) as time,
+CONCAT(u.fname,' ',u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
 mh.hno,
@@ -567,9 +558,9 @@ END as qr_code,
 COALESCE(t.name,'Not Defined') as type,
 COALESCE(st.name,'Not Defined') as subtype,
 CASE 
-WHEN msce.home_status_id = 1 THEN 'Open'
-WHEN msce.home_status_id = 2 THEN 'Closed'
-ELSE ''
+    WHEN msce.home_status_id = 1 THEN 'Open'
+    WHEN msce.home_status_id = 2 THEN 'Closed'
+    ELSE ''
 END as status,
 CASE
     WHEN ss.name IS NULL AND sss.name IS NULL THEN ''
@@ -592,76 +583,50 @@ mh.latitude as hh_lat,
 mh.longitude as hh_lng,
 mh.location as hh_location
 
-FROM mf_household mh
+FROM mf_submit_collection_entry msce
+JOIN mf_household mh ON mh.id = msce.household_id
 JOIN mf_wado w ON w.id = mh.wado_id
 JOIN mf_panchayat mp ON mp.id = w.panchayat_id
 JOIN mf_taluka mt ON mt.id = mp.taluka_id
-
-JOIN (
-    SELECT DISTINCT DATE(msce.collection_date) as report_date
-    FROM mf_submit_collection_entry msce
-    JOIN mf_household mh2 ON mh2.id = msce.household_id
-    JOIN mf_wado w2 ON w2.id = mh2.wado_id
-    WHERE w2.panchayat_id = ?
-    AND DATE(msce.collection_date) BETWEEN ? AND ?
-
-    UNION
-
-    SELECT ?
-) dates ON 1=1
-
-LEFT JOIN (
-    SELECT msce1.*
-    FROM mf_submit_collection_entry msce1
-    INNER JOIN (
-        SELECT household_id, DATE(collection_date) as d, MAX(collection_date) as max_date
-        FROM mf_submit_collection_entry
-        WHERE DATE(collection_date) BETWEEN ? AND ?
-        GROUP BY household_id, DATE(collection_date)
-    ) latest
-    ON msce1.household_id = latest.household_id
-    AND DATE(msce1.collection_date) = latest.d
-    AND msce1.collection_date = latest.max_date
-) msce 
-ON msce.household_id = mh.id
-AND DATE(msce.collection_date) = dates.report_date
-
-LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
-LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
 LEFT JOIN mf_household_type t ON t.id = st.type_id
+LEFT JOIN mf_segregation_status ss ON ss.id = msce.segregation_status_id
+LEFT JOIN mf_segregation_sub_status sss ON sss.id = msce.segregation_sub_status_id
 LEFT JOIN mf_user u ON u.id = msce.user_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
-WHERE mh.status = 1
+WHERE DATE(msce.collection_date) BETWEEN ? AND ?
+AND msce.segregation_status_id IS NOT NULL
 ";
-$export_params = [
-    $panchayat,   // dates subquery filter
-    $from_date,
-    $to_date,
-    $from_date,   // fallback date (UNION)
-    $from_date,
-    $to_date      // latest subquery
-];
-$export_types = "isssss";
+
+// Apply filters
+if ($wado) {
+    $sql .= " AND w.id = ?";
+}
+if ($taluka) {
+    $sql .= " AND mt.id = ?";
+}
+if ($panchayat) {
+    $sql .= " AND mp.id = ?";
+}
+
+$sql .= " ORDER BY msce.collection_date DESC, mh.id";
+
+$export_params = [$from_date, $to_date];
+$export_types = "ss";
 
 if ($wado) {
     $export_types .= "i";
     $export_params[] = $wado;
-    $sql .= " AND w.id = ?";
 }
 if ($taluka) {
     $export_types .= "i";
     $export_params[] = $taluka;
-    $sql .= " AND mt.id = ?";
 }
 if ($panchayat) {
     $export_types .= "i";
     $export_params[] = $panchayat;
-    $sql .= " AND mp.id = ?";
 }
-
-$sql .= " ORDER BY dates.report_date DESC, mh.id";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($export_types, ...$export_params);
