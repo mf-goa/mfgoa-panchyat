@@ -547,7 +547,7 @@ SELECT
 DATE_FORMAT(dates.report_date, '%Y-%m-%d') as collection_date,
 CASE 
     WHEN msce.collection_date IS NOT NULL 
-    THEN DATE_FORMAT(msce.collection_date, '%H:%i:%s')
+    THEN TIME(msce.collection_date)
     ELSE ''
 END as time,
 CASE 
@@ -697,6 +697,105 @@ while ($row = $res->fetch_assoc()) {
         safe_csv($row['hh_location'])
     ]);
 }
+
+// GAP BEFORE UNSERVICED
+fputcsv($output, []);
+fputcsv($output, ['UNSERVICED HOUSEHOLDS']);
+fputcsv($output, []);
+
+// RESET SR
+$sr = 1;
+
+// UNSERVICED QUERY
+$sql_unserviced = "
+SELECT 
+mp.name as panchayat,
+w.name as wado,
+mh.hno,
+mh.name as head_name,
+mh.qr_code,
+COALESCE(t.name,'Not Defined') as type,
+COALESCE(st.name,'Not Defined') as subtype,
+mh.action,
+CONCAT(ua.fname,' ',ua.lname) as action_by_name,
+mh.action_ts,
+mh.latitude as hh_lat,
+mh.longitude as hh_lng,
+mh.location as hh_location
+
+FROM mf_household mh
+JOIN mf_wado w ON w.id = mh.wado_id
+JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+JOIN mf_taluka mt ON mt.id = mp.taluka_id
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
+LEFT JOIN mf_user ua ON ua.id = mh.action_by
+
+LEFT JOIN (
+    SELECT DISTINCT household_id
+    FROM mf_submit_collection_entry
+    WHERE DATE(collection_date) BETWEEN ? AND ?
+    AND segregation_status_id IS NOT NULL
+) serviced ON serviced.household_id = mh.id
+
+WHERE mh.status = 1
+AND serviced.household_id IS NULL
+";
+
+$un_params = [$from_date, $to_date];
+$un_types = "ss";
+
+if ($wado) {
+    $sql_unserviced .= " AND w.id = ?";
+    $un_types .= "i";
+    $un_params[] = $wado;
+}
+if ($taluka) {
+    $sql_unserviced .= " AND mt.id = ?";
+    $un_types .= "i";
+    $un_params[] = $taluka;
+}
+if ($panchayat) {
+    $sql_unserviced .= " AND mp.id = ?";
+    $un_types .= "i";
+    $un_params[] = $panchayat;
+}
+
+$stmt2 = $conn->prepare($sql_unserviced);
+$stmt2->bind_param($un_types, ...$un_params);
+$stmt2->execute();
+$res2 = $stmt2->get_result();
+
+// LOOP UNSERVICED (KEEP SAME FORMAT, BLANK COLLECTION FIELDS)
+while ($row = $res2->fetch_assoc()) {
+    fputcsv($output, [
+        $sr++,
+        '', // Date
+        '', // Time
+        '', // User
+        safe_csv($row['panchayat']),
+        safe_csv($row['wado']),
+        safe_csv($row['hno']),
+        safe_csv($row['head_name']),
+        safe_csv($row['qr_code']),
+        safe_csv($row['type']),
+        safe_csv($row['subtype']),
+        '', // Status
+        '', // Segregation Status
+        '', // Remark
+        '', // Lat
+        '', // Lng
+        '', // New QR
+        safe_csv($row['action']),
+        safe_csv($row['action_by_name']),
+        safe_csv($row['action_ts']),
+        safe_csv($row['hh_lat']),
+        safe_csv($row['hh_lng']),
+        safe_csv($row['hh_location'])
+    ]);
+}
+
+$stmt2->close();
 
 fclose($output);
 exit;
