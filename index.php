@@ -593,6 +593,93 @@ while ($row = $res->fetch_assoc()) {
     ]);
 }
 
+// -----------------------------
+// UNSERVICED HOUSEHOLDS BLOCK
+// -----------------------------
+
+fputcsv($output, []);
+fputcsv($output, ['UNSERVICED HOUSEHOLDS']);
+fputcsv($output, []);
+
+$sr = 1;
+
+$sql_unserviced = "
+SELECT 
+mp.name as panchayat,
+w.name as wado,
+mh.hno as house_no,
+mh.name as head_of_family,
+mh.qr_code,
+COALESCE(t.name,'') as type,
+COALESCE(st.name,'') as subtype,
+mh.action,
+CONCAT(ua.fname, ' ', ua.lname) as action_by,
+mh.action_ts as action_date,
+mh.latitude as household_latitude,
+mh.longitude as household_longitude,
+mh.location as household_location
+
+FROM mf_household mh
+JOIN mf_wado w ON w.id = mh.wado_id
+JOIN mf_panchayat mp ON mp.id = w.panchayat_id
+LEFT JOIN mf_household_subtype st ON st.id = mh.subtype_id
+LEFT JOIN mf_household_type t ON t.id = st.type_id
+LEFT JOIN mf_user ua ON ua.id = mh.action_by
+
+LEFT JOIN (
+    SELECT DISTINCT household_id
+    FROM mf_submit_collection_entry
+    WHERE DATE(collection_date) BETWEEN ? AND ?
+    AND segregation_status_id IS NOT NULL
+) serviced ON serviced.household_id = mh.id
+
+WHERE mh.status = 1 AND mp.id = ?
+";
+
+if ($wado) {
+    $sql_unserviced .= " AND w.id = ?";
+}
+
+$stmt2 = $conn->prepare($sql_unserviced);
+
+if ($wado) {
+    $stmt2->bind_param("ssii", $from_date, $to_date, $panchayat_id, $wado);
+} else {
+    $stmt2->bind_param("ssi", $from_date, $to_date, $panchayat_id);
+}
+
+$stmt2->execute();
+$res2 = $stmt2->get_result();
+
+while ($row = $res2->fetch_assoc()) {
+    fputcsv($output, [
+        $sr++,
+        '',
+        '',
+        '',
+        safe_csv($row['panchayat']),
+        safe_csv($row['wado']),
+        safe_csv($row['house_no']),
+        safe_csv($row['head_of_family']),
+        safe_csv($row['qr_code']),
+        safe_csv($row['type']),
+        safe_csv($row['subtype']),
+        '',
+        '',
+        '',
+        '',
+        '',
+        safe_csv($row['action']),
+        safe_csv($row['action_by']),
+        safe_csv($row['action_date']),
+        safe_csv($row['household_latitude']),
+        safe_csv($row['household_longitude']),
+        safe_csv($row['household_location'])
+    ]);
+}
+
+$stmt2->close();
+
 fclose($output);
 exit;
 }
