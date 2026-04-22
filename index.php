@@ -603,6 +603,7 @@ fputcsv($output, []);
 
 $sr = 1;
 
+// Build UNSERVICED SQL to match admin logic exactly
 $sql_unserviced = "
 SELECT 
 mp.name as panchayat,
@@ -627,25 +628,32 @@ LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
 LEFT JOIN (
-    SELECT DISTINCT household_id
-    FROM mf_submit_collection_entry
-    WHERE DATE(collection_date) BETWEEN ? AND ?
-    AND segregation_status_id IS NOT NULL
-) serviced ON serviced.household_id = mh.id
-
+    SELECT DISTINCT msce.household_id
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh2 ON mh2.id = msce.household_id
+    JOIN mf_wado w2 ON w2.id = mh2.wado_id
+    WHERE DATE(msce.collection_date) BETWEEN ? AND ?
+    AND msce.segregation_status_id IS NOT NULL
+    AND w2.panchayat_id = ?
+";
+if ($wado) {
+    $sql_unserviced .= " AND w2.id = ?";
+}
+$sql_unserviced .= "
+ ) serviced ON serviced.household_id = mh.id
 WHERE mh.status = 1 AND mp.id = ?
 ";
-
 if ($wado) {
     $sql_unserviced .= " AND w.id = ?";
 }
 
 $stmt2 = $conn->prepare($sql_unserviced);
 
+// Param binding order: from_date, to_date, panchayat_id (subquery), [wado (subquery)], panchayat_id (main), [wado (main)]
 if ($wado) {
-    $stmt2->bind_param("ssii", $from_date, $to_date, $panchayat_id, $wado);
+    $stmt2->bind_param("ssiii", $from_date, $to_date, $panchayat_id, $panchayat_id, $wado);
 } else {
-    $stmt2->bind_param("ssi", $from_date, $to_date, $panchayat_id);
+    $stmt2->bind_param("ssii", $from_date, $to_date, $panchayat_id, $panchayat_id);
 }
 
 $stmt2->execute();
