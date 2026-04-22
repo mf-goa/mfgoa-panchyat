@@ -604,7 +604,7 @@ fputcsv($output, []);
 $sr = 1;
 
 // Build UNSERVICED SQL to match admin logic exactly
-// UNSERVICED HOUSEHOLDS BLOCK (HARD ENFORCE PANCHAYAT FILTER)
+// UNSERVICED HOUSEHOLDS BLOCK (HARD ENFORCE PANCHAYAT FILTER, explicit panchayat join in subquery)
 $sql_unserviced = "
 SELECT 
 mp.name as panchayat,
@@ -629,10 +629,13 @@ LEFT JOIN mf_household_type t ON t.id = st.type_id
 LEFT JOIN mf_user ua ON ua.id = mh.action_by
 
 LEFT JOIN (
-    SELECT DISTINCT household_id
-    FROM mf_submit_collection_entry
-    WHERE DATE(collection_date) BETWEEN ? AND ?
-    AND segregation_status_id IS NOT NULL
+    SELECT DISTINCT msce.household_id
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh2 ON mh2.id = msce.household_id
+    JOIN mf_wado w2 ON w2.id = mh2.wado_id
+    WHERE DATE(msce.collection_date) BETWEEN ? AND ?
+    AND msce.segregation_status_id IS NOT NULL
+    AND w2.panchayat_id = " . intval($panchayat_id) . "
 ) serviced ON serviced.household_id = mh.id
 WHERE mh.status = 1
 AND mp.id = " . intval($panchayat_id) . "
@@ -647,12 +650,19 @@ if ($wado) {
     $un_params[] = $wado;
 }
 
+// Add debug count (TEMP)
 if (isset($_GET['debug']) && $_GET['debug'] == 1) {
-    echo "<pre>";
-    echo "Panchayat ID: " . $panchayat_id . "\n";
-    echo "SQL: " . $sql_unserviced . "\n";
-    print_r($un_params);
-    echo "</pre>";
+    $debug_sql = "SELECT COUNT(DISTINCT msce.household_id) as serviced_debug
+    FROM mf_submit_collection_entry msce
+    JOIN mf_household mh2 ON mh2.id = msce.household_id
+    JOIN mf_wado w2 ON w2.id = mh2.wado_id
+    WHERE DATE(msce.collection_date) BETWEEN '$from_date' AND '$to_date'
+    AND msce.segregation_status_id IS NOT NULL
+    AND w2.panchayat_id = $panchayat_id";
+
+    $debug_res = $conn->query($debug_sql);
+    $debug_row = $debug_res->fetch_assoc();
+    echo "<pre>DEBUG SERVICED COUNT: ".$debug_row['serviced_debug']."</pre>";
 }
 
 $stmt2 = $conn->prepare($sql_unserviced);
