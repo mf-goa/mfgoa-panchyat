@@ -544,7 +544,7 @@ fputcsv($output, [
 $sql = "
 SELECT 
 DATE_FORMAT(msce.collection_date, '%Y-%m-%d') as collection_date,
-TIME(msce.date) as time,
+DATE_FORMAT(msce.date, '%h:%i:%s %p') as time,
 CONCAT(u.fname,' ',u.lname) as user_name,
 mp.name as panchayat,
 w.name as wado,
@@ -564,8 +564,22 @@ CASE
 END as status,
 CASE
     WHEN ss.name IS NULL AND sss.name IS NULL THEN ''
-    WHEN ss.name IS NOT NULL AND sss.name IS NOT NULL THEN CONCAT(ss.name,' / ',sss.name)
+
+    WHEN ss.name = 'Segregate' AND sss.name = 'Mix Waste' THEN 
+        CONCAT(
+            ss.name, '/',
+            sss.name, '/',
+            CASE 
+                WHEN msce.mix_waste_status = 1 THEN 'Accept'
+                ELSE 'Reject'
+            END
+        )
+
+    WHEN ss.name IS NOT NULL AND sss.name IS NOT NULL THEN 
+        CONCAT(ss.name,' / ',sss.name)
+
     WHEN ss.name IS NOT NULL THEN ss.name
+
     ELSE sss.name
 END as segregation_status,
 msce.remark,
